@@ -1,0 +1,21 @@
+# UI
+streamlit>=1.28.0
+
+# RAG & embeddings
+chromadb>=0.4.22
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.20
+
+# LLM / API
+openai>=1.12.0
+python-dotenv>=1.0.0
+tiktoken>=0.5.2
+
+# Scraping
+instaloader>=4.10
+TikTokApi>=6.2.0
+playwright>=1.41.0
+
+# Report export (optional)
+reportlab>=4.0.0

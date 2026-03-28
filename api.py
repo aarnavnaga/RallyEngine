@@ -3,7 +3,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -14,7 +14,7 @@ from agent.orchestrator import run_analysis
 app = FastAPI(title="RallyEngine API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -41,15 +41,24 @@ class AnalyzeResponse(BaseModel):
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest):
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        _executor,
-        lambda: run_analysis(
-            creator_name=req.creator.strip(),
-            platforms=req.platforms,
-            brand_context=req.brand_context or None,
-            use_cache_hours=req.cache_hours,
-        ),
-    )
+    try:
+        result = await asyncio.wait_for(
+            loop.run_in_executor(
+                _executor,
+                lambda: run_analysis(
+                    creator_name=req.creator.strip(),
+                    platforms=req.platforms,
+                    brand_context=req.brand_context or None,
+                    use_cache_hours=req.cache_hours,
+                ),
+            ),
+            timeout=180.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Analysis timed out after 3 minutes")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     meta = result.get("meta", {})
     return AnalyzeResponse(
         summary=result.get("summary", ""),

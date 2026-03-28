@@ -45,14 +45,8 @@ def scrape(creator_identifier: str, output_dir: Path) -> list[Path]:
                 written = future.result()
         else:
             written = asyncio.run(_run())
-    except Exception as e:
-        # Fallback: ensure directory exists; caller may have pre-seeded data
-        fallback = out / "captions.txt"
-        if not fallback.exists():
-            fallback.write_text(
-                f"# TikTok scrape placeholder for {creator_identifier}\n# Error: {e}\n# Add captions here or run TikTokApi when available.",
-                encoding="utf-8",
-            )
-            written = [fallback]
+    except Exception:
+        # Don't write error placeholder — let the web scraper handle it
+        pass
 
     return written

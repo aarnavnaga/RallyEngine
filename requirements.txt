@@ -11,6 +11,9 @@ sentence-transformers>=2.2.0
 httpx>=0.27.0
 python-dotenv>=1.0.0
 
+# Web scraping (public profiles + search)
+beautifulsoup4>=4.12.0
+
 # Scraping
 instaloader>=4.10
 TikTokApi>=6.2.0

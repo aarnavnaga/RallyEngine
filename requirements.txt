@@ -4,13 +4,12 @@ streamlit>=1.28.0
 # RAG & embeddings
 chromadb>=0.4.22
 langchain>=0.1.0
-langchain-openai>=0.0.5
 langchain-community>=0.0.20
+sentence-transformers>=2.2.0
 
-# LLM / API
-openai>=1.12.0
+# LLM (Ollama - runs locally, no API key needed)
+httpx>=0.27.0
 python-dotenv>=1.0.0
-tiktoken>=0.5.2
 
 # Scraping
 instaloader>=4.10

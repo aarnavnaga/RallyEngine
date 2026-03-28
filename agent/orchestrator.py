@@ -25,19 +25,24 @@ def _normalize_creator_name(name: str) -> str:
     return s.lstrip("@") or "unknown"
 
 
-def _call_llm(system: str, user: str, model: str = "gpt-4o-mini") -> str:
-    """Single LLM call via OpenAI. Returns assistant message content."""
+def _call_llm(system: str, user: str, model: str = "llama3.2:3b") -> str:
+    """Single LLM call via Ollama (local, free). Returns assistant message content."""
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+        import httpx
+        resp = httpx.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "stream": False,
+            },
+            timeout=120.0,
         )
-        return (resp.choices[0].message.content or "").strip()
+        resp.raise_for_status()
+        return (resp.json().get("message", {}).get("content") or "").strip()
     except Exception as e:
         return f"[LLM error: {e}]"
 

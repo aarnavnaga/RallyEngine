@@ -1,7 +1,6 @@
 """
 Ingest scraped creator content: load from directory, chunk, embed, store in vector DB.
 """
-import os
 from pathlib import Path
 
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -9,12 +8,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from .vector_store import get_client, get_collection_name, get_or_create_collection
 
-# Chroma's OpenAI embedding function for consistent embed at ingest and query time
+# Local embedding function using sentence-transformers (free, no API key needed)
 def _get_embedding_function():
     from chromadb.utils import embedding_functions
-    return embedding_functions.OpenAIEmbeddingFunction(
-        api_key=os.environ.get("OPENAI_API_KEY"),
-        model_name="text-embedding-3-small",
+    return embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-MiniLM-L6-v2",
     )
 
 
@@ -44,7 +42,7 @@ def ingest_creator(creator_name: str, creator_data_dir: Path | None = None):
     """
     Ingest a creator's data from disk into the vector store.
     - Loads from data/creators/<normalized_name>/ (or creator_data_dir if provided)
-    - Chunks with overlap, embeds with OpenAI, stores in Chroma per-creator collection.
+    - Chunks with overlap, embeds with sentence-transformers, stores in Chroma per-creator collection.
     Replaces existing collection for this creator.
     Returns (num_docs_loaded, num_chunks_indexed).
     """

@@ -25,7 +25,7 @@ def _normalize_creator_name(name: str) -> str:
     return s.lstrip("@") or "unknown"
 
 
-def _call_llm(system: str, user: str, model: str = "llama3.2:3b") -> str:
+def _call_llm(system: str, user: str, model: str = "gemma3:4b") -> str:
     """Single LLM call via Ollama (local, free). Returns assistant message content."""
     try:
         import httpx

@@ -25,29 +25,17 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState("");
+  const [streamingSummary, setStreamingSummary] = useState("");
+  const [streamingFit, setStreamingFit] = useState("");
 
   async function handleAnalyze() {
     if (!creator.trim()) return;
     setLoading(true);
     setResult(null);
     setError(null);
-    setPhase("Connecting to data sources...");
-
-    const phases = [
-      "Scraping public profiles...",
-      "Searching web presence...",
-      "Mining Reddit discussions...",
-      "Building RAG index...",
-      "Generating creator report...",
-      "Assessing brand fit...",
-    ];
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < phases.length) {
-        setPhase(phases[i]);
-        i++;
-      }
-    }, 3000);
+    setPhase("Connecting...");
+    setStreamingSummary("");
+    setStreamingFit("");
 
     try {
       const resp = await fetch("http://localhost:8000/api/analyze", {
@@ -60,13 +48,52 @@ export default function Home() {
           cache_hours: 0,
         }),
       });
-      if (!resp.ok) throw new Error(`Analysis failed (${resp.status})`);
-      const data = await resp.json();
-      setResult(data);
+      if (!resp.ok || !resp.body) {
+        throw new Error(`Analysis failed (${resp.status})`);
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult: AnalysisResult | null = null;
+      let streamError: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const ev = JSON.parse(trimmed);
+            if (ev.type === "progress") {
+              setPhase(ev.phase);
+            } else if (ev.type === "token") {
+              if (ev.section === "summary") {
+                setStreamingSummary((s) => s + ev.chunk);
+              } else if (ev.section === "brand_fit") {
+                setStreamingFit((s) => s + ev.chunk);
+              }
+            } else if (ev.type === "result") {
+              finalResult = ev.data as AnalysisResult;
+            } else if (ev.type === "error") {
+              streamError = ev.message;
+            }
+          } catch {
+            // ignore malformed line
+          }
+        }
+      }
+
+      if (streamError) throw new Error(streamError);
+      if (!finalResult) throw new Error("No result received");
+      setResult(finalResult);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
-      clearInterval(interval);
       setLoading(false);
       setPhase("");
     }
@@ -136,9 +163,36 @@ export default function Home() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="mt-8"
+              className="mt-8 space-y-4"
             >
               <AnalysisProgress phase={phase} creator={creator} />
+
+              {(streamingSummary || streamingFit) && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {streamingSummary && (
+                    <div className="glass-card p-5">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-muted)] mb-2">
+                        Creator Summary (live)
+                      </p>
+                      <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
+                        {streamingSummary}
+                        <span className="inline-block w-2 h-4 bg-[var(--accent)] align-middle ml-0.5 animate-pulse" />
+                      </p>
+                    </div>
+                  )}
+                  {streamingFit && (
+                    <div className="glass-card p-5">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-muted)] mb-2">
+                        Brand Fit (live)
+                      </p>
+                      <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
+                        {streamingFit}
+                        <span className="inline-block w-2 h-4 bg-emerald-400 align-middle ml-0.5 animate-pulse" />
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

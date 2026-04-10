@@ -2,6 +2,7 @@
 Pipeline orchestrator: scrape -> ingest -> retrieve -> LLM summary and brand-fit report.
 """
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
@@ -25,11 +26,22 @@ def _normalize_creator_name(name: str) -> str:
     return s.lstrip("@") or "unknown"
 
 
-def _call_llm(system: str, user: str, model: str = "gemma3:4b") -> str:
-    """Single LLM call via Ollama (local, free). Returns assistant message content."""
+def _call_llm(
+    system: str,
+    user: str,
+    model: str = "gemma3:4b",
+    token_callback: Callable[[str], None] | None = None,
+) -> str:
+    """Single LLM call via Ollama (local, free). Returns full assistant content.
+
+    If token_callback is provided, streams tokens and fires callback per chunk.
+    No length cap — full-quality output.
+    """
     try:
+        import json as _json
         import httpx
-        resp = httpx.post(
+        with httpx.stream(
+            "POST",
             "http://localhost:11434/api/chat",
             json={
                 "model": model,
@@ -37,12 +49,30 @@ def _call_llm(system: str, user: str, model: str = "gemma3:4b") -> str:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                "stream": False,
+                "stream": True,
             },
-            timeout=120.0,
-        )
-        resp.raise_for_status()
-        return (resp.json().get("message", {}).get("content") or "").strip()
+            timeout=180.0,
+        ) as resp:
+            resp.raise_for_status()
+            parts: list[str] = []
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    obj = _json.loads(line)
+                except Exception:
+                    continue
+                chunk = (obj.get("message") or {}).get("content") or ""
+                if chunk:
+                    parts.append(chunk)
+                    if token_callback:
+                        try:
+                            token_callback(chunk)
+                        except Exception:
+                            pass
+                if obj.get("done"):
+                    break
+            return "".join(parts).strip()
     except Exception as e:
         return f"[LLM error: {e}]"
 
@@ -78,6 +108,7 @@ def run_analysis(
     creator_data_dir: Path | None = None,
     use_cache_hours: float | None = None,
     progress_callback: Callable[[str], None] | None = None,
+    token_callback: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
     """
     Run full pipeline: scrape (if needed) -> ingest -> retrieve -> LLM -> report.
@@ -106,17 +137,32 @@ def run_analysis(
         }
 
     # 3) Build context from RAG
+    if progress_callback:
+        progress_callback("Searching relevant context...")
     context = _build_context(name, brand_context)
 
-    # 4) Creator summary
+    # 4) Run summary + brand-fit LLM calls in parallel with token streaming.
+    # Note: Ollama on single-GPU Macs effectively serializes these calls,
+    # so wall-clock gain is minimal, but the code is correct and will benefit
+    # from OLLAMA_NUM_PARALLEL>1 on capable hardware.
     if progress_callback:
-        progress_callback("Generating report...")
+        progress_callback("Generating report (streaming)...")
     sys_sum, user_sum = creator_summary_messages(name, context)
-    summary = _call_llm(sys_sum, user_sum)
-
-    # 5) Brand-fit assessment
     sys_fit, user_fit = brand_fit_messages(name, context, brand_context or "")
-    brand_fit = _call_llm(sys_fit, user_fit)
+
+    def _stream_summary(chunk: str) -> None:
+        if token_callback:
+            token_callback("summary", chunk)
+
+    def _stream_fit(chunk: str) -> None:
+        if token_callback:
+            token_callback("brand_fit", chunk)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_summary = pool.submit(_call_llm, sys_sum, user_sum, "gemma3:4b", _stream_summary)
+        fut_fit = pool.submit(_call_llm, sys_fit, user_fit, "gemma3:4b", _stream_fit)
+        summary = fut_summary.result()
+        brand_fit = fut_fit.result()
 
     # Parse caveats from summary (last line often "Limitations: ...") or from brand_fit
     caveats = "Based on retrieved excerpts only; no demographic or reach data."

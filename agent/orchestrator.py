@@ -77,12 +77,14 @@ def _call_llm(
         return f"[LLM error: {e}]"
 
 
-def _build_context(creator_name: str, brand_context: str | None, k: int = 14) -> str:
+def _build_context(creator_name: str, brand_context: str | None, k: int = 18) -> str:
     """Retrieve relevant chunks and format as a single context string."""
     queries = [
+        "follower count followers views likes comments engagement rate metrics",
+        "top performing video caption recent post",
         "content style tone topics audience",
-        "brand partnership collaboration sponsored",
-        "skincare makeup beauty routine",
+        "brand partnership collaboration sponsored ad",
+        "bio profile verified platform",
     ]
     if brand_context:
         queries.append(brand_context)

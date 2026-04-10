@@ -10,6 +10,17 @@ import time
 from pathlib import Path
 
 
+def _try_structured_scraper(platform: str, creator: str, output_dir: Path) -> list[Path]:
+    """Try the structured (Playwright + yt-dlp) scraper. Returns [] on failure."""
+    try:
+        if platform == "TikTok":
+            from scrapers.tiktok_playwright import scrape
+            return scrape(creator, output_dir)
+    except Exception:
+        pass
+    return []
+
+
 def _try_api_scraper(platform: str, creator: str, output_dir: Path) -> list[Path]:
     """Try the API-based scraper for a platform. Returns [] on failure."""
     try:
@@ -39,13 +50,23 @@ def _web_scrape(platform: str, creator: str, output_dir: Path) -> list[Path]:
 
 
 def _scrape_platform(platform: str, creator: str, output_dir: Path) -> list[Path]:
-    """Scrape a single platform: web first, API fallback."""
-    # Web scraping (no auth needed)
-    paths = _web_scrape(platform, creator, output_dir)
+    """
+    Scrape a single platform.
 
-    # If web scraping got real content, use it
+    Priority:
+      1. Structured scraper (Playwright + yt-dlp for TikTok) — produces
+         profile.json + posts.json with real metrics.
+      2. Web scraper (Brave Search + meta tags) — text-only fallback.
+      3. API scraper (TikTokApi / Instaloader) — last resort.
+    """
+    structured = _try_structured_scraper(platform, creator, output_dir)
+    if structured:
+        # Structured outputs always include a digest captions.txt with
+        # real metrics, so we consider any non-empty result a success.
+        return structured
+
+    paths = _web_scrape(platform, creator, output_dir)
     if paths:
-        # Check the files actually have content (not just error placeholders)
         has_real_content = False
         for p in paths:
             text = p.read_text(encoding="utf-8", errors="ignore")
@@ -55,12 +76,11 @@ def _scrape_platform(platform: str, creator: str, output_dir: Path) -> list[Path
         if has_real_content:
             return paths
 
-    # Fall back to API-based scraper
     api_paths = _try_api_scraper(platform, creator, output_dir)
     if api_paths:
         return api_paths
 
-    return paths  # Return whatever web scraping got, even if thin
+    return paths
 
 
 def run_scrapers(

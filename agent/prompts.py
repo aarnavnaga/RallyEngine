@@ -21,10 +21,15 @@ CREATOR: {creator_name}
 
 Structure your summary as:
 1. **Overview**: Who is this creator? What platforms are they active on?
-2. **Content themes**: What topics do they cover? (e.g. fitness, beauty, comedy)
-3. **Tone and style**: How do they communicate? (e.g. educational, casual, comedic)
-4. **Audience signals**: Who engages with their content based on the data?
-5. **Community perception**: What does public discussion say about them?
+2. **Reach & Engagement**: Cite EXACT numbers from the data — follower count,
+   average views, average likes, average comments, and engagement rate if present.
+   If any of these numbers appear in the data, you MUST quote them verbatim.
+3. **Content themes**: What topics do they cover? (e.g. fitness, beauty, comedy)
+4. **Tone and style**: How do they communicate? (e.g. educational, casual, comedic)
+5. **Top content**: Reference the best-performing post(s) by caption and metrics
+   when that information is present in the data.
+6. **Audience signals**: Who engages with their content based on the data?
+7. **Community perception**: What does public discussion say about them?
 
 End with: "Data sources: [list what types of data were available]"."""
 
@@ -48,10 +53,12 @@ BRAND CONTEXT: {brand_context}
 
 Provide:
 1. **Fit rating**: Strong / Moderate / Niche / Insufficient Data (with one sentence justification)
-2. **Strengths**: 2-3 bullet points based on the data
-3. **Risks or concerns**: 1-2 bullet points (e.g. controversies found, limited data, audience mismatch)
-4. **Recommended campaign type**: What type of partnership would work (e.g. product seeding, sponsored content, ambassador program)
-5. **Data confidence**: How much data was available to make this assessment?"""
+2. **Reach snapshot**: Quote EXACT numbers if present — follower count, average
+   engagement, engagement rate. Do not invent numbers. If absent, state so.
+3. **Strengths**: 2-3 bullet points grounded in specific metrics or captions
+4. **Risks or concerns**: 1-2 bullet points (e.g. controversies, low engagement, audience mismatch)
+5. **Recommended campaign type**: What type of partnership would work (e.g. product seeding, sponsored content, ambassador program)
+6. **Data confidence**: How much data was available to make this assessment?"""
 
 
 def creator_summary_messages(creator_name: str, context: str) -> tuple[str, str]:

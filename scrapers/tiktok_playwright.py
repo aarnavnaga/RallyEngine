@@ -174,20 +174,42 @@ def _compute_metrics(profile: dict[str, Any], posts: list[dict[str, Any]]) -> di
     avg_views = _avg(views)
     followers = profile.get("follower_count") or 0
 
-    # Engagement rate on followers — standard industry metric
+    # Reach-to-follower ratio: how far past the follower base the account's
+    # content typically travels (via TikTok's For You Page recommendation).
+    # A ratio >> 1 means the follower count is a poor denominator for ER —
+    # likes come from a pool many times larger than the follower list.
+    fyp_reach_ratio = None
+    if followers and avg_views is not None:
+        fyp_reach_ratio = round(avg_views / followers, 2)
+
+    # FYP-dominant threshold: average video reaches >2x the follower base.
+    # Above this, the industry-standard "ER on followers" becomes misleading.
+    is_fyp_dominant = bool(fyp_reach_ratio and fyp_reach_ratio >= 2.0)
+
+    # Engagement rate on followers — standard industry metric, but only
+    # meaningful when reach ≈ followers (closed-loop content model).
+    # For FYP-dominant accounts this number can exceed 100% and is suppressed
+    # to avoid propagating a nonsense value to the LLM.
     engagement_rate_followers = None
-    if followers and avg_likes is not None:
+    if followers and avg_likes is not None and not is_fyp_dominant:
         engagement_rate_followers = round(
             ((avg_likes + (avg_comments or 0)) / followers) * 100, 3
         )
 
-    # Engagement rate on views — better for viral FYP-driven content
-    # where reach exceeds follower count
+    # Engagement rate on views — TikTok-appropriate metric used by
+    # HypeAuditor / CreatorIQ for FYP-driven content.
     engagement_rate_views = None
     if avg_views and avg_likes is not None:
         engagement_rate_views = round(
             ((avg_likes + (avg_comments or 0)) / avg_views) * 100, 3
         )
+
+    # Primary engagement rate to report: prefer view-based for FYP-dominant,
+    # follower-based otherwise. This is the single number LLMs should cite.
+    primary_engagement_rate = (
+        engagement_rate_views if is_fyp_dominant else engagement_rate_followers
+    )
+    primary_engagement_basis = "views" if is_fyp_dominant else "followers"
 
     # Best post by likes
     best = max(
@@ -213,8 +235,12 @@ def _compute_metrics(profile: dict[str, Any], posts: list[dict[str, Any]]) -> di
         "avg_reposts": _avg(reposts),
         "total_likes_sampled": _sum(likes),
         "total_views_sampled": _sum(views),
+        "fyp_reach_ratio": fyp_reach_ratio,
+        "is_fyp_dominant": is_fyp_dominant,
         "engagement_rate_on_followers_percent": engagement_rate_followers,
         "engagement_rate_on_views_percent": engagement_rate_views,
+        "primary_engagement_rate_percent": primary_engagement_rate,
+        "primary_engagement_rate_basis": primary_engagement_basis,
         "avg_duration_sec": _avg(durations),
         "sponsored_posts_detected": sponsored,
         "sponsored_ratio_percent": round((sponsored / len(posts)) * 100, 1)
@@ -258,17 +284,32 @@ def _format_digest(profile: dict[str, Any], posts: list[dict[str, Any]], metrics
         lines.append(
             f"Recent Activity ({metrics['post_count_sampled']} latest videos sampled):"
         )
+        primary_er = metrics.get("primary_engagement_rate_percent")
+        primary_basis = metrics.get("primary_engagement_rate_basis")
         er_f = metrics.get("engagement_rate_on_followers_percent")
         er_v = metrics.get("engagement_rate_on_views_percent")
-        if er_f is not None:
+        fyp_ratio = metrics.get("fyp_reach_ratio")
+        is_fyp = metrics.get("is_fyp_dominant")
+
+        if primary_er is not None:
             lines.append(
-                f"  Engagement Rate (on followers): {er_f}% "
-                f"(avg likes+comments / followers)"
+                f"  Engagement Rate: {primary_er}% (on {primary_basis}) — "
+                f"primary metric for this account"
             )
-        if er_v is not None:
+        if er_v is not None and primary_basis != "views":
+            lines.append(f"  Engagement Rate (on views):     {er_v}%")
+        if er_f is not None and primary_basis != "followers":
+            lines.append(f"  Engagement Rate (on followers): {er_f}%")
+        if fyp_ratio is not None:
             lines.append(
-                f"  Engagement Rate (on views):     {er_v}% "
-                f"(avg likes+comments / avg views)"
+                f"  FYP Reach Ratio: {fyp_ratio}x "
+                f"(avg views / followers — how far content travels beyond the follower base)"
+            )
+        if is_fyp:
+            lines.append(
+                "  NOTE: This account is FYP-dominant — average reach far exceeds its "
+                "follower count, so 'engagement rate on followers' is not meaningful. "
+                "Use the view-based rate for this creator."
             )
         if metrics.get("avg_views") is not None:
             lines.append(

@@ -1,5 +1,5 @@
-# Data and vectors (local workspace)
-data/
+# Data and vectors (local workspace) - root-only, do not match frontend/src/lib/data
+/data/
 *.db
 
 # Environment
@@ -23,3 +23,19 @@ build/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Dev artifacts
+.playwright-mcp/
+mercor-tour/
+LIVE_STATUS.md
+.claude/
+
+# Frontend env
+frontend/.env*.local

@@ -41,46 +41,51 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div className="pointer-events-none fixed top-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map((t) => (
-          <div key={t.id} className="toast pointer-events-auto fade-in relative pr-8" data-test-id={`toast-${t.id}`}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                dismiss(t.id);
-              }}
-              aria-label="Dismiss notification"
-              data-test-id="toast-dismiss"
-              className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded text-[var(--fg-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg)]"
-            >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                <path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" />
-              </svg>
-            </button>
+          <div key={t.id} className="toast pointer-events-auto fade-in" data-test-id={`toast-${t.id}`}>
             <div className="flex items-start gap-3">
-              <div
-                className={`mt-1 h-1.5 w-1.5 rounded-full ${
+              <span
+                className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
                   t.kind === "success"
                     ? "bg-[var(--success)]"
                     : t.kind === "warning"
                     ? "bg-[var(--warning)]"
                     : "bg-[var(--accent)]"
                 }`}
+                aria-hidden="true"
               />
-              <div className="flex-1">
-                <div className="text-[13px] font-medium text-[var(--fg)]">{t.title}</div>
+              <div className="min-w-0 flex-1">
+                <div className="pr-7 text-[13px] font-semibold leading-snug text-[var(--fg)]">
+                  {t.title}
+                </div>
                 {t.body ? (
-                  <div className="text-[12px] text-[var(--fg-muted)] mt-0.5">{t.body}</div>
+                  <div className="mt-1 text-[12px] leading-relaxed text-[var(--fg-muted)]">
+                    {t.body}
+                  </div>
                 ) : null}
                 {t.href ? (
                   <a
                     href={t.href}
-                    className="text-[12px] text-[var(--accent)] mt-1 inline-block hover:underline"
+                    className="mt-1.5 inline-block text-[12px] font-medium text-[var(--accent)] hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     view →
                   </a>
                 ) : null}
               </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dismiss(t.id);
+                }}
+                aria-label="Dismiss notification"
+                data-test-id="toast-dismiss"
+                className="-mr-1 -mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-[var(--fg-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg)]"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                  <path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" />
+                </svg>
+              </button>
             </div>
           </div>
         ))}

@@ -216,12 +216,12 @@ button { letter-spacing: var(--tracking-tight); }
 .toast {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 14px 16px 14px 16px;
   box-shadow: var(--shadow-pop);
   font-size: 14px;
-  min-width: 280px;
-  max-width: 360px;
+  min-width: 340px;
+  max-width: 420px;
   animation: fade-in 0.25s ease-out both;
 }
 

@@ -58,7 +58,19 @@ export function Sidebar() {
 
         <nav className="mt-2 flex w-full flex-col items-stretch gap-1 px-2">
           {items.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            // Use the most-specific match: a sidebar entry is active iff its
+            // href is the longest of the entries that prefix the current
+            // pathname. Without this, /admin/creators highlights both
+            // Overview (/admin) AND Creators because /admin/creators
+            // starts with /admin/.
+            const candidates = items.filter(
+              (it) => pathname === it.href || pathname.startsWith(it.href + "/"),
+            );
+            const bestMatchHref = candidates.reduce(
+              (best, it) => (it.href.length > best.length ? it.href : best),
+              "",
+            );
+            const active = item.href === bestMatchHref;
             const Icon = item.icon;
             return (
               <Link

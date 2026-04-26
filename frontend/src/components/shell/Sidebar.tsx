@@ -45,18 +45,18 @@ export function Sidebar() {
   const items = identity?.persona === "admin" ? ADMIN_ITEMS : CREATOR_ITEMS;
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 z-30 flex w-[68px] flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg)] py-4">
+    <aside className="fixed left-0 top-0 bottom-0 z-30 flex w-[80px] flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg)] py-5">
       {/* Top: Mercor-style M wordmark */}
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-4">
         <Link
           href={identity?.persona === "admin" ? "/admin" : "/explore"}
           aria-label="Mercor home"
-          className="grid h-9 w-9 place-items-center rounded-md text-[var(--accent)]"
+          className="grid h-10 w-10 place-items-center rounded-md text-[var(--accent)]"
         >
           <MercorMark />
         </Link>
 
-        <nav className="mt-3 flex w-full flex-col items-stretch gap-0.5 px-2">
+        <nav className="mt-2 flex w-full flex-col items-stretch gap-1 px-2">
           {items.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
@@ -68,7 +68,7 @@ export function Sidebar() {
                 aria-current={active ? "page" : undefined}
                 data-test-id={item.testId}
               >
-                <Icon size={18} strokeWidth={1.7} />
+                <Icon size={20} strokeWidth={1.6} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -77,25 +77,25 @@ export function Sidebar() {
       </div>
 
       {/* Bottom: help + bell + avatar */}
-      <div className="flex flex-col items-center gap-1.5">
+      <div className="flex flex-col items-center gap-2">
         <button
-          className="grid h-9 w-9 place-items-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg)]"
+          className="grid h-10 w-10 place-items-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg)]"
           aria-label="Help"
         >
-          <HelpCircle size={18} strokeWidth={1.7} />
+          <HelpCircle size={20} strokeWidth={1.7} />
         </button>
         <NotificationsDropdown />
         <button
           onClick={switchPersona}
-          className="mt-2 grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[var(--bg-hover)] text-[12px] font-semibold text-[var(--fg-muted)] hover:ring-2 hover:ring-[var(--accent-soft)]"
+          className="mt-1 grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-[var(--bg-hover)] text-[12px] font-semibold text-[var(--fg-muted)] ring-1 ring-[var(--border)] hover:ring-2 hover:ring-[var(--accent-soft)]"
           aria-label="Switch persona"
           title="Switch persona"
           data-test-id="sidebar-persona-switcher"
         >
           {identity?.persona === "admin" ? (
-            <img src="/avatars/aaron-langerman.jpg" alt="Aaron Langerman" className="h-9 w-9 object-cover" />
+            <img src="/avatars/aaron-langerman.jpg" alt="Aaron Langerman" className="h-10 w-10 object-cover" />
           ) : identity ? (
-            <img src="/avatars/loganmann32.jpg" alt="Logan Mann" className="h-9 w-9 object-cover" />
+            <img src="/avatars/loganmann32.jpg" alt="Logan Mann" className="h-10 w-10 object-cover" />
           ) : (
             "?"
           )}

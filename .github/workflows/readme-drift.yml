@@ -1,0 +1,128 @@
+name: README drift watch
+
+# Runs on every push and every PR. Compares the README against the live route
+# table + the lib/data file list, and posts a comment on the PR (or opens an
+# issue on push to main) if drift is detected.
+#
+# This is the 24/7 README maintainer Logan asked for on 2026-04-26 so Arnav
+# can rely on the README being accurate without manual upkeep.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/src/app/**"
+      - "frontend/src/lib/data/**"
+      - "scripts/**"
+      - "README.md"
+  pull_request:
+    paths:
+      - "frontend/src/app/**"
+      - "frontend/src/lib/data/**"
+      - "scripts/**"
+      - "README.md"
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect drift
+        id: drift
+        run: |
+          set -e
+          drift=0
+          : > /tmp/missing.txt
+
+          while IFS= read -r route; do
+            [ -z "$route" ] && continue
+            [ "$route" = "/" ] && continue
+            if ! grep -qF "$route" README.md; then
+              echo "$route" >> /tmp/missing.txt
+              drift=1
+            fi
+          done < <(find frontend/src/app -name "page.tsx" 2>/dev/null \
+              | sed -e 's|frontend/src/app||' -e 's|/page\.tsx$||' \
+              | grep -v "^\[" \
+              | grep -v "/\[" )
+
+          if [ "$drift" -eq 1 ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.drift.outputs.drift == 'true'
+        uses: actions/github-script@v7
+        env:
+          MISSING_ROUTES_FILE: /tmp/missing.txt
+        with:
+          script: |
+            const fs = require('fs');
+            const file = process.env.MISSING_ROUTES_FILE;
+            const missing = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+            const body = [
+              "📘 **README drift detected**",
+              "",
+              "These routes exist in the app but aren't mentioned in the README:",
+              "",
+              ...missing.map((r) => '- `' + r + '`'),
+              "",
+              "Either add them to the route map in README.md or call them out in this PR's description so Arnav has the full picture before merging.",
+            ].join("\n");
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Open issue on main drift
+        if: github.event_name != 'pull_request' && steps.drift.outputs.drift == 'true'
+        uses: actions/github-script@v7
+        env:
+          MISSING_ROUTES_FILE: /tmp/missing.txt
+        with:
+          script: |
+            const fs = require('fs');
+            const file = process.env.MISSING_ROUTES_FILE;
+            const missing = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+            const title = 'README drift: ' + missing.length + ' undocumented route' + (missing.length === 1 ? '' : 's');
+            const body = [
+              "Drift detected by the scheduled README watcher.",
+              "",
+              "**Undocumented routes:**",
+              "",
+              ...missing.map((r) => '- `' + r + '`'),
+              "",
+              "Update `README.md` to cover them, or add an `<!-- excluded:<route> -->` marker if intentional.",
+            ].join("\n");
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "readme-drift",
+              per_page: 5,
+            });
+            if (existing.length > 0) {
+              core.info('Existing drift issue #' + existing[0].number + ' is open; skipping.');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["readme-drift", "documentation"],
+              assignees: ["itsloganmann"],
+            });

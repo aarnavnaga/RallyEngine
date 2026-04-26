@@ -168,15 +168,20 @@ const MEET_CARDS: MeetCardData[] = [
 /* ------------------------------------------------------------------ */
 function LandingContent() {
   const router = useRouter();
-  const { identity, signInAs } = useUser();
+  const { identity, hydrated, signInAs } = useUser();
   const [loginOpen, setLoginOpen] = useState(false);
   const [heroCtaOpen, setHeroCtaOpen] = useState(false);
 
-  // If already signed in, redirect immediately
+  // If already signed in, redirect to the persona's home — but only after
+  // UserProvider has had a chance to read localStorage. The AppShell-side
+  // hydration gate already prevents `/home` etc. from bouncing through
+  // here, but in case someone deep-links to `/`, wait for hydrated so we
+  // don't briefly flash the landing page before redirecting.
   useEffect(() => {
+    if (!hydrated) return;
     if (identity?.persona === "creator") router.replace("/explore");
     else if (identity?.persona === "admin") router.replace("/admin");
-  }, [identity, router]);
+  }, [hydrated, identity, router]);
 
   return (
     <div className="min-h-screen bg-white text-[var(--fg)]">

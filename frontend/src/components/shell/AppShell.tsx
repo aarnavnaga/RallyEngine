@@ -10,13 +10,23 @@ import { useUser } from "@/lib/state/user";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { identity } = useUser();
+  const { identity, hydrated } = useUser();
 
   useEffect(() => {
-    if (!identity) router.replace("/");
-  }, [identity, router]);
+    // Wait until UserProvider has read localStorage. Otherwise a hard
+    // refresh on /home (or anywhere else) sees identity === null on the
+    // first render and bounces back to /, which then forwards to /explore —
+    // so refresh always lands on /explore regardless of what page you were on.
+    if (hydrated && !identity) router.replace("/");
+  }, [hydrated, identity, router]);
 
   useDemoTicker(!!identity, identity?.persona ?? null);
+
+  if (!hydrated) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[var(--bg)] text-[var(--fg-muted)]" />
+    );
+  }
 
   if (!identity) {
     return (

@@ -54,6 +54,13 @@ const AARON: AdminIdentity = {
 
 type Ctx = {
   identity: Identity | null;
+  /**
+   * False during SSR + the very first client render before localStorage has
+   * been read. Routes that gate on `identity` should wait for `hydrated`
+   * before redirecting — otherwise a hard refresh sees identity === null,
+   * bounces back to the landing page, and only then re-routes to /explore.
+   */
+  hydrated: boolean;
   signInAs: (persona: Persona) => void;
   signOut: () => void;
   switchPersona: () => void;
@@ -67,6 +74,7 @@ const STORAGE_KEY = "mercor.identity.v1";
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
@@ -78,6 +86,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       /* noop */
+    } finally {
+      setHydrated(true);
     }
   }, []);
 
@@ -107,13 +117,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       identity,
+      hydrated,
       signInAs,
       signOut,
       switchPersona,
       isCreator: identity?.persona === "creator",
       isAdmin: identity?.persona === "admin",
     }),
-    [identity, signInAs, signOut, switchPersona],
+    [identity, hydrated, signInAs, signOut, switchPersona],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

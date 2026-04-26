@@ -50,16 +50,6 @@ function genPerf(seed: string): { day: string; views: number; sales: number }[] 
   });
 }
 
-// ── Relevance heatmap: 6×6 grid of opacity-weighted circles ──────────────
-function genRelevanceGrid(seed: string): number[][] {
-  return Array.from({ length: 6 }, (_, r) =>
-    Array.from({ length: 6 }, (_, c) => {
-      const v = (hashSeed(`${seed}-rel-${r}-${c}`) % 100) / 100;
-      return Math.round(v * 100) / 100;
-    }),
-  );
-}
-
 // ── Live activity feed lines ───────────────────────────────────────────────
 const ACTIVITY_TEMPLATES = [
   "Logan Mann posted to TikTok - 7.4K views in first 90 minutes.",
@@ -151,21 +141,14 @@ export default function CampaignDetailPage({
   // Synthetic perf data
   const perfData = React.useMemo(() => (campaign ? genPerf(campaign.id) : []), [campaign]);
 
-  // Comment relevance heatmap
-  const relevanceGrid = React.useMemo(
-    () => (campaign ? genRelevanceGrid(campaign.id) : []),
-    [campaign],
-  );
-
-  // For celsius-college-q2 lock to 38%
-  const avgRelevance =
-    id === "celsius-college-q2"
-      ? 38
-      : React.useMemo(() => {
-          const flat = relevanceGrid.flat();
-          if (!flat.length) return 0;
-          return Math.round((flat.reduce((a, b) => a + b, 0) / flat.length) * 100);
-        }, [relevanceGrid]);
+  // Avg comment relevance (cosine sim of fan comments to brand voice).
+  // Locked to 38% for celsius-college-q2 to match the demo script; for every
+  // other campaign we derive a stable value from the campaign id.
+  const avgRelevance = React.useMemo(() => {
+    if (id === "celsius-college-q2") return 38;
+    if (!campaign) return 0;
+    return 30 + (hashSeed(campaign.id) % 50);
+  }, [id, campaign]);
 
   // Ticking counters
   const lastPerf = perfData[perfData.length - 1];
@@ -346,32 +329,14 @@ export default function CampaignDetailPage({
               </ResponsiveContainer>
             </div>
 
-            {/* Comment relevance heatmap */}
-            <div className="mt-5">
-              <div className="label-cap">Comment relevance heatmap</div>
-              <p className="mt-1 text-[11px] text-[var(--fg-muted)]">
-                Each cell = one cohort of comments. Opacity = relevance score (0-1) to brand voice.
-              </p>
-              <div
-                className="mt-3 inline-grid gap-2"
-                style={{ gridTemplateColumns: "repeat(6, 1fr)" }}
-                data-test-id="campaign-relevance-grid"
-              >
-                {relevanceGrid.flat().map((score, idx) => (
-                  <div
-                    key={idx}
-                    title={`Relevance: ${(score * 100).toFixed(0)}%`}
-                    className="h-7 w-7 rounded-full"
-                    style={{
-                      background: `color-mix(in srgb, var(--accent) ${Math.round(score * 100)}%, var(--bg-hover))`,
-                    }}
-                  />
-                ))}
+            <div className="mt-5 flex items-center justify-between rounded-[10px] border border-[var(--border)] bg-[var(--bg-elev)] px-4 py-3">
+              <div>
+                <div className="label-cap">Avg comment relevance</div>
+                <p className="mt-1 text-[11px] text-[var(--fg-muted)]">
+                  Cosine similarity of fan comments to brand voice. Drives the relevant_eyes payout term.
+                </p>
               </div>
-              <div className="mt-3 text-[13px] font-semibold">
-                Avg relevance:{" "}
-                <span className="text-[var(--accent)]">{avgRelevance}%</span>
-              </div>
+              <div className="text-[20px] font-semibold tracking-tight text-[var(--accent)]">{avgRelevance}%</div>
             </div>
           </section>
 

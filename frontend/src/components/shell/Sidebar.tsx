@@ -92,7 +92,13 @@ export function Sidebar() {
           title="Switch persona"
           data-test-id="sidebar-persona-switcher"
         >
-          {identity?.persona === "admin" ? "AL" : identity ? "LM" : "?"}
+          {identity?.persona === "admin" ? (
+            <img src="/avatars/aaron-langerman.jpg" alt="Aaron Langerman" className="h-9 w-9 object-cover" />
+          ) : identity ? (
+            <img src="/avatars/loganmann32.jpg" alt="Logan Mann" className="h-9 w-9 object-cover" />
+          ) : (
+            "?"
+          )}
         </button>
       </div>
     </aside>

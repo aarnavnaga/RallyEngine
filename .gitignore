@@ -1,5 +1,5 @@
-# Data and vectors (local workspace)
-data/
+# Data and vectors (local workspace) - root-only, do not match frontend/src/lib/data
+/data/
 *.db
 
 # Environment

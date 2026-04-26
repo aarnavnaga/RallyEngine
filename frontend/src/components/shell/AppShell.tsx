@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { MercorFooter } from "./MercorFooter";
 import { useDemoTicker } from "./ToastContainer";
+import { ResetDemoButton } from "./ResetDemoButton";
 import { useUser } from "@/lib/state/user";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="w-full px-10 py-10">{children}</div>
         <MercorFooter />
       </main>
+      <ResetDemoButton />
     </div>
   );
 }

@@ -39,7 +39,7 @@ export default function AdminOverviewPage() {
       </section>
 
       <section className="mt-10">
-        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)]">
+        <div className="flex flex-wrap items-center gap-x-10 gap-y-2 border-b border-[var(--border)]">
           {(
             [
               ["pending", `Pending (${buckets.pending.length})`],
@@ -52,13 +52,13 @@ export default function AdminOverviewPage() {
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`pb-3 text-[14px] ${tab === id ? "border-b-2 border-[var(--accent)] font-medium text-[var(--accent)]" : "text-[var(--fg-muted)] hover:text-[var(--fg)]"}`}
+              className={`relative pb-3 pt-1 text-[14px] tracking-tight ${tab === id ? "font-medium text-[var(--accent)] after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:bg-[var(--accent)]" : "text-[var(--fg-muted)] hover:text-[var(--fg)]"}`}
               data-test-id={`admin-tab-${id}`}
             >
               {label}
             </button>
           ))}
-          <span className="ml-auto text-[12px] text-[var(--fg-muted)]">Sorted by impact ↓</span>
+          <span className="ml-auto pb-3 text-[12px] text-[var(--fg-muted)]">Sorted by impact ↓</span>
         </div>
 
         <div className="mt-4 overflow-hidden rounded-[12px] border border-[var(--border)]">

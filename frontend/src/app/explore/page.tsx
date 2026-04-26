@@ -8,6 +8,7 @@ import { BRAND_DOMAINS } from "@/lib/data/brands";
 import { BrandMark } from "@/components/shell/BrandMark";
 import { fmtCurrency } from "@/lib/util/score";
 import { JobDetailPanel } from "@/components/explore/JobDetailPanel";
+import { getHiresForCampaign } from "@/lib/data/creator-avatars";
 
 const CATEGORY_LABEL: Record<string, string> = {
   energy: "Energy drinks",
@@ -20,19 +21,30 @@ const CATEGORY_LABEL: Record<string, string> = {
   "ai-talent": "AI / Talent",
 };
 
+// Every campaign in this demo lives under the new "Creators & Influencers"
+// vertical Mercor adds. Selecting any other domain therefore shows nothing.
+const CREATORS_DOMAIN = "Creators & Influencers";
+
 export default function ExplorePage() {
   const router = useRouter();
   const search = useSearchParams();
   const listingId = search.get("listingId");
+  const queryDomain = search.get("domain");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"priority" | "rate-high" | "rate-low" | "hires">(
     "priority",
   );
-  const [domain, setDomain] = useState<string | null>("Creators & Influencers");
+  const [domain, setDomain] = useState<string | null>(
+    queryDomain ?? CREATORS_DOMAIN,
+  );
 
   const items = useMemo(() => {
     const all = listCampaigns();
     let filtered = all;
+    if (domain && domain !== CREATORS_DOMAIN) {
+      // No campaigns exist outside the Creators vertical in this demo.
+      filtered = [];
+    }
     if (query) {
       const q = query.toLowerCase();
       filtered = filtered.filter(
@@ -58,7 +70,7 @@ export default function ExplorePage() {
         );
     }
     return filtered;
-  }, [query, sort]);
+  }, [query, sort, domain]);
 
   return (
     <div>
@@ -168,10 +180,12 @@ export default function ExplorePage() {
             <div className="mt-5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex -space-x-1.5">
-                  {[0, 1, 2].map((i) => (
-                    <span
+                  {getHiresForCampaign(c.brand_id, 3).map((url, i) => (
+                    <img
                       key={i}
-                      className="h-5 w-5 rounded-full border border-[var(--bg)] bg-[var(--bg-hover)]"
+                      src={url}
+                      alt=""
+                      className="h-5 w-5 rounded-full border border-[var(--bg)] bg-[var(--bg-hover)] object-cover"
                       aria-hidden="true"
                     />
                   ))}

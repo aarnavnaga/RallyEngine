@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useUser } from "@/lib/state/user";
+import { ResetDemoButton } from "./ResetDemoButton";
 
 /** Mercor-style apply-page shell - no sidebar, just topbar with job title + progress.
  * Mirrors work.mercor.com/jobs/apply/<id> layout. */
@@ -27,6 +28,7 @@ export function AppShellLite({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {children}
+      <ResetDemoButton />
     </div>
   );
 }

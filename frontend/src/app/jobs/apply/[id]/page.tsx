@@ -74,8 +74,6 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
   }
 
   function onInterviewNext() {
-    const ans = interviewAnswers.map((a, i) => (i === pageOf ? a : a));
-    setInterviewAnswers(ans);
     if (pageOf < INTERVIEW_QS.length - 1) setPageOf(pageOf + 1);
     else setDone((d) => ({ ...d, interview: true }));
   }

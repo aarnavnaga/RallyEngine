@@ -1,16 +1,31 @@
 #!/bin/bash
 # Auto-hotfix loop for the Mercor demo dev server.
 # Polls http://localhost:3000/ every 60s. If down or returning 404,
-# kills the dev server, removes .next, and restarts. Logs to /tmp/rally-hotfix.log.
+# kills the dev server it spawned, removes .next, and restarts.
 #
-# Run: bash auto-hotfix.sh   (or via cron / pm2 / a CronCreate scheduled task)
+# Paths derive from the script location so the script is portable.
+# Override with env vars if running outside the repo:
+#   FRONTEND=/path/to/frontend bash auto-hotfix.sh
+#
+# Run: bash auto-hotfix.sh           # loop mode (blocks)
+#      bash auto-hotfix.sh once      # one-shot (cron-friendly)
 
 set -euo pipefail
 PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
-WORKTREE="/Users/logan/RallyEngine/.claude/worktrees/musing-maxwell-84ed29"
-FRONTEND="$WORKTREE/frontend"
-LOG="/tmp/rally-hotfix.log"
-DEV_LOG="/tmp/rally-dev.log"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+FRONTEND="${FRONTEND:-$REPO_ROOT/frontend}"
+
+if [ ! -d "$FRONTEND" ]; then
+  echo "auto-hotfix: FRONTEND directory not found at $FRONTEND" >&2
+  echo "auto-hotfix: set FRONTEND=/abs/path/to/frontend and re-run" >&2
+  exit 1
+fi
+
+LOG="${HOTFIX_LOG:-/tmp/rally-hotfix.log}"
+DEV_LOG="${HOTFIX_DEV_LOG:-/tmp/rally-dev.log}"
+PID_FILE="${HOTFIX_PID_FILE:-/tmp/rally-dev.pid}"
 PORTS=(3000 3001)
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
@@ -32,19 +47,39 @@ is_healthy() {
   return 0
 }
 
+graceful_kill() {
+  local pid="$1"
+  [ -z "$pid" ] && return 0
+  /bin/kill -TERM "$pid" 2>/dev/null || return 0
+  for _ in 1 2 3 4 5; do
+    if ! /bin/kill -0 "$pid" 2>/dev/null; then return 0; fi
+    sleep 1
+  done
+  /bin/kill -KILL "$pid" 2>/dev/null || true
+}
+
 restart_dev() {
   log "RESTART begin"
+  # Prefer the PID we recorded last time we spawned the dev server. Only
+  # SIGKILL after a 5s SIGTERM grace period, and only narrow port-based
+  # cleanup of anything actually bound to our dev ports.
+  if [ -f "$PID_FILE" ]; then
+    graceful_kill "$(cat "$PID_FILE" 2>/dev/null)"
+    /bin/rm -f "$PID_FILE"
+  fi
   for p in "${PORTS[@]}"; do
-    /usr/bin/lsof -ti ":$p" -sTCP:LISTEN 2>/dev/null | /usr/bin/xargs -r /bin/kill -9 2>/dev/null || true
+    while read -r pid; do
+      graceful_kill "$pid"
+    done < <(/usr/bin/lsof -ti ":$p" -sTCP:LISTEN 2>/dev/null || true)
   done
-  /usr/bin/pkill -f "next dev" 2>/dev/null || true
   sleep 1
   /bin/rm -rf "$FRONTEND/.next"
   cd "$FRONTEND"
   /usr/bin/nohup pnpm dev > "$DEV_LOG" 2>&1 < /dev/null &
+  echo $! > "$PID_FILE"
   disown || true
   sleep 7
-  log "RESTART done; tail of dev log:"
+  log "RESTART done (pid=$(cat "$PID_FILE" 2>/dev/null || echo unknown)); tail of dev log:"
   /usr/bin/tail -5 "$DEV_LOG" >> "$LOG"
 }
 

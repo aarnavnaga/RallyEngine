@@ -39,15 +39,27 @@ function MatchInner() {
   const brand = BRANDS_BY_ID[brandId] ?? BRANDS[0];
 
   const ranked = useMemo(() => {
-    return CREATORS.map((c) => {
+    const all = CREATORS.map((c) => {
       const impact = computeImpact(c, brand);
       const sim = similarity(c, brand);
       const pay = computeSuggestedPay(c, brand, impact);
       return { c, impact, sim, pay };
-    })
-      .sort((a, b) => b.sim * 100 + b.impact.rounded - (a.sim * 100 + a.impact.rounded))
-      .slice(0, 14);
-  }, [brand]);
+    }).sort((a, b) => b.sim * 100 + b.impact.rounded - (a.sim * 100 + a.impact.rounded));
+
+    const top = all.slice(0, 14);
+
+    // Pin the focused creator (e.g. ?focus=loganmann32) so demos always see
+    // them. Without this, a small-account creator like Logan (22.7K) ranks
+    // ~30th and never renders, breaking the cite-by-URL "wow moment".
+    if (focusedCreator) {
+      const alreadyIn = top.some((r) => r.c.id === focusedCreator);
+      if (!alreadyIn) {
+        const pinned = all.find((r) => r.c.id === focusedCreator);
+        if (pinned) return [pinned, ...top];
+      }
+    }
+    return top;
+  }, [brand, focusedCreator]);
 
   const toggle = (id: string) => {
     const next = new Set(picked);

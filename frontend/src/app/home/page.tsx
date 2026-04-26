@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   Clock,
   Search,
-  Filter,
 } from "lucide-react";
 import {
   CONTRACTS,
@@ -170,18 +169,29 @@ const CREATOR_ASSESSMENTS: Assessment[] = [
 function AssessmentRow({ a }: { a: Assessment }) {
   const isRetake = a.state === "retake";
   const isCompleted = a.state === "completed";
-  const btnLabel = isRetake ? "Retake Assessment" : isCompleted ? "Retake Assessment" : a.format === "interview" ? "Start interview" : "View assessment";
+  // Some seed names embed " CORE" in the title — strip it and surface as a
+  // proper pill so we don't end up double-tagging like "Brainstorming CORE [CORE]".
+  const hasCore = / CORE\s*$/i.test(a.name);
+  const cleanName = a.name.replace(/\s+CORE\s*$/i, "");
+  const isInterview = a.format === "interview";
+  const btnLabel = isCompleted
+    ? "View assessment"
+    : isRetake
+      ? "Retake assessment"
+      : isInterview
+        ? "Start interview"
+        : "View assessment";
   const btnCls = isCompleted
-    ? "pill pill-success text-[11px] cursor-default"
-    : "rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-[11px] font-medium text-white hover:bg-[var(--accent-hover)] transition-colors";
+    ? "text-[12px] font-medium text-[var(--accent)] hover:underline"
+    : "rounded-[8px] bg-[var(--accent)] px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors";
 
   return (
     <div
-      className="flex items-center gap-3 border-b border-[var(--border)] py-3 last:border-b-0"
+      className="flex items-center gap-3 border-b border-[var(--border)] py-3.5 last:border-b-0"
       data-test-id={`home-assessment-${a.slug}`}
     >
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--bg-elev)]">
-        {a.format === "interview" ? (
+        {isInterview ? (
           <Mic size={14} className="text-[var(--fg-muted)]" />
         ) : (
           <FileText size={14} className="text-[var(--fg-muted)]" />
@@ -189,38 +199,41 @@ function AssessmentRow({ a }: { a: Assessment }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[13px] font-medium">{a.name}</span>
-          <span className="pill text-[10px]">CORE</span>
+          <span className="text-[13px] font-medium">{cleanName}</span>
+          {hasCore ? (
+            <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
+              CORE
+            </span>
+          ) : null}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--fg-muted)] flex-wrap">
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--fg-muted)] flex-wrap">
           <span className="flex items-center gap-1">
             <Clock size={10} />
             {a.duration}
           </span>
           <span>·</span>
-          <span>{a.format === "interview" ? "Interview" : "Form"}</span>
-          {a.roles_count != null ? (
-            <>
-              <span>·</span>
-              <span>Used by {a.roles_count} role{a.roles_count !== 1 ? "s" : ""}</span>
-              {a.max_pay && (
-                <>
-                  <span>·</span>
-                  <span>Paying up to {a.max_pay}</span>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <span>·</span>
-              <span>Available for upcoming opportunities</span>
-            </>
-          )}
+          <span>{isInterview ? "Interview" : "Form"}</span>
         </div>
         {isCompleted && (
-          <div className="mt-1">
+          <div className="mt-1.5">
             <span className="pill pill-success text-[10px]">Completed</span>
           </div>
+        )}
+      </div>
+      <div className="hidden flex-shrink-0 text-right text-[11px] text-[var(--fg-muted)] md:block">
+        {a.roles_count != null ? (
+          <>
+            <div>
+              Used by <span className="font-semibold text-[var(--fg)]">{a.roles_count} role{a.roles_count !== 1 ? "s" : ""}</span>
+            </div>
+            {a.max_pay && (
+              <div>
+                Paying up to <span className="font-semibold text-[var(--fg)]">{a.max_pay}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <span>Available for upcoming opportunities</span>
         )}
       </div>
       <button className={btnCls}>{btnLabel}</button>
@@ -421,29 +434,29 @@ function ApplicationCard({ application: a }: { application: Application }) {
 
 function AssessmentsTab() {
   return (
-    <div className="space-y-4">
-      {/* Hero card */}
-      <div className="relative overflow-hidden rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--accent)] to-[#f4a8b6] p-6">
-        <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-          <div className="flex-1">
-            <h2 className="text-[22px] font-bold text-white tracking-tight">
+    <div className="space-y-6">
+      {/* Hero — mirrors work.mercor.com/home?tab=assessments */}
+      <div className="relative overflow-visible rounded-[16px] bg-gradient-to-r from-[#5b3df0] via-[#7857ff] to-[#f4a8b6] px-8 pt-10 pb-12 lg:pb-10">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="max-w-[480px]">
+            <h2 className="text-[32px] font-bold leading-tight tracking-tight text-white">
               Assessments
             </h2>
-            <p className="mt-2 text-[13px] text-white/80 leading-relaxed max-w-lg">
+            <p className="mt-3 text-[13px] leading-relaxed text-white/85">
               Assessments are the quickest way to unlock more opportunities. Many roles share the same requirements, so once you&apos;ve passed an assessment, you&apos;re automatically considered for any new matching roles in the future. No extra applications, no extra hassle.
             </p>
           </div>
-          <div className="flex gap-3 lg:shrink-0">
+          <div className="flex gap-3 lg:-mb-16">
             {[
               {
-                name: "Brainstorming Session CORE",
+                name: "Brainstorming Session",
                 duration: "16 minutes",
                 desc: "A quick domain-specific creative brainstorming skills assessment",
                 roles: 0,
                 pay: "$0/hourly",
               },
               {
-                name: "Data Science Interview CORE",
+                name: "Data Science Interview",
                 duration: "30 minutes",
                 desc: "Domain-specific data science skills interview",
                 roles: 0,
@@ -452,15 +465,26 @@ function AssessmentsTab() {
             ].map((card) => (
               <div
                 key={card.name}
-                className="w-[180px] shrink-0 rounded-[10px] bg-white p-3 shadow-md"
+                className="w-[220px] shrink-0 rounded-[12px] bg-white p-4 shadow-[0_8px_24px_rgba(15,7,52,0.18)]"
               >
-                <div className="text-[12px] font-semibold leading-snug">{card.name}</div>
-                <div className="mt-1 text-[10px] text-[var(--fg-muted)]">{card.duration}</div>
-                <p className="mt-1 text-[10px] text-[var(--fg-muted)] leading-snug">{card.desc}</p>
-                <div className="mt-1 text-[10px] text-[var(--fg-muted)]">
-                  Used by {card.roles} roles · Paying up to {card.pay}
+                <div className="flex items-center gap-1.5 text-[11px] text-[var(--fg-muted)]">
+                  <Clock size={11} strokeWidth={1.7} />
+                  {card.duration}
                 </div>
-                <button className="mt-2 w-full rounded-[6px] bg-[var(--accent)] py-1 text-[10px] font-semibold text-white">
+                <div className="mt-2 text-[14px] font-semibold leading-snug text-[var(--fg)]">
+                  {card.name}
+                </div>
+                <span className="mt-1.5 inline-block rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
+                  CORE
+                </span>
+                <p className="mt-3 text-[11px] leading-snug text-[var(--fg-muted)]">{card.desc}</p>
+                <div className="mt-3 text-[11px] text-[var(--fg-muted)]">
+                  Used by <span className="font-semibold text-[var(--fg)]">{card.roles} roles</span>
+                </div>
+                <div className="text-[11px] text-[var(--fg-muted)]">
+                  Paying up to <span className="font-semibold text-[var(--fg)]">{card.pay}</span>
+                </div>
+                <button className="mt-3 w-full rounded-[8px] bg-[var(--accent)] py-1.5 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors">
                   Start interview
                 </button>
               </div>
@@ -469,9 +493,8 @@ function AssessmentsTab() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2">
-        <Filter size={14} className="shrink-0 text-[var(--fg-muted)]" />
+      {/* Search bar — Mercor uses just a search icon, no filter funnel */}
+      <div className="lg:mt-20 flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5">
         <Search size={14} className="shrink-0 text-[var(--fg-muted)]" />
         <input
           className="flex-1 bg-transparent text-[13px] placeholder-[var(--fg-subtle)] outline-none"

@@ -31,8 +31,11 @@ type Reply = {
   timestamp: number;
 };
 
+type ThreadKind = "creator" | "brand";
+
 type Thread = {
   id: string;
+  kind: ThreadKind;
   creatorId: string;
   brandId: string;
   campaignId: string;
@@ -139,6 +142,7 @@ function buildDefaultThreads(): Thread[] {
 
     threads.push({
       id: `${brandId}-${top.c.id}`,
+      kind: "creator",
       creatorId: top.c.id,
       brandId,
       campaignId,
@@ -185,6 +189,7 @@ function buildDefaultThreads(): Thread[] {
 
     threads.push({
       id: `${brandId}-${creator.id}`,
+      kind: "creator",
       creatorId: creator.id,
       brandId,
       campaignId,
@@ -197,7 +202,7 @@ function buildDefaultThreads(): Thread[] {
     idx++;
   }
 
-  return threads;
+  return [...threads, ...buildBrandThreads()];
 }
 
 function buildLoganThread(): Thread {
@@ -208,6 +213,7 @@ function buildLoganThread(): Thread {
   const pay = computeSuggestedPay(CREATORS_BY_ID["loganmann32"], brand, impact);
   return {
     id: "celsius-loganmann32",
+    kind: "creator",
     creatorId: "loganmann32",
     brandId: "celsius",
     campaignId,
@@ -216,6 +222,76 @@ function buildLoganThread(): Thread {
     draftMessage: buildDraft(CREATORS_BY_ID["loganmann32"], brand, campaign.title, pay.total_low, pay.total_high),
     replies: [],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Brand-side outreach: Mercor BD reaches out to brands offering matched
+// creator slates. Mirrors the creator-side flow but the recipient is the
+// brand instead of the creator.
+// ---------------------------------------------------------------------------
+
+function buildBrandDraft(brand: Brand, campaignTitle: string, leadCreator: Creator, slateCount: number): string {
+  const focus = brand.brand_voice[0] ?? "your audience";
+  return `Hey ${brand.name} team - Mercor BD here. We've assembled a ${slateCount}-creator slate for ${campaignTitle} that maps directly onto ${focus}. Top match: ${leadCreator.name} (${fmtFollowers(leadCreator.followers)} followers, ${(similarity(leadCreator, brand) * 100).toFixed(0)}% brand-voice fit). Full slate, comment-relevance scoring, and suggested rates attached. Worth a 15-minute call this week to walk you through the pricing model and lock the cohort?`;
+}
+
+function simulatedBrandReply(brand: Brand): string {
+  if (brand.id === "celsius" || brand.id === "ghost-energy") {
+    return "Numbers look strong. Can you commit to comment-relevance ≥ 35% across the cohort? That's our internal threshold for college pushes.";
+  }
+  if (brand.id === "alani" || brand.id === "bloom") {
+    return "Love the slate. Let's lock 8 creators for the morning-stack push - send the contracts and we'll get our team to countersign.";
+  }
+  if (brand.id === "bucked-up" || brand.id === "ryse") {
+    return "Bring the lead creator on a 30-min discovery before we sign anything. Need to make sure brand voice lands.";
+  }
+  return "Send the deck and proposed pricing. We'll review internally and get back within 48 hours.";
+}
+
+function buildBrandThreads(): Thread[] {
+  // Brands actively in the BD pipeline, with status spread across the same
+  // tabs (Pending / Sent / Replied / Negotiating).
+  const config: Array<{ brandId: string; status: ThreadStatus; slate: number }> = [
+    { brandId: "celsius", status: "pending", slate: 14 },
+    { brandId: "bucked-up", status: "pending", slate: 9 },
+    { brandId: "alani", status: "sent", slate: 11 },
+    { brandId: "ghost-energy", status: "sent", slate: 8 },
+    { brandId: "bloom", status: "replied", slate: 12 },
+    { brandId: "ryse", status: "replied", slate: 7 },
+    { brandId: "gymshark", status: "negotiating", slate: 18 },
+  ];
+
+  return config.flatMap(({ brandId, status, slate }) => {
+    const brand = BRANDS_BY_ID[brandId];
+    if (!brand) return [];
+    const ranked = CREATORS.map((c) => ({ c, sim: similarity(c, brand) })).sort((a, b) => b.sim - a.sim);
+    const lead = ranked[0]?.c;
+    if (!lead) return [];
+    const campaignId = Object.keys(CAMPAIGNS_BY_ID).find((id) => CAMPAIGNS_BY_ID[id].brand_id === brandId) ?? "";
+    const campaign = campaignId ? CAMPAIGNS_BY_ID[campaignId] : null;
+
+    const replies: Reply[] = [];
+    if (status === "replied" || status === "negotiating") {
+      replies.push({
+        id: `br-${brandId}-1`,
+        text: simulatedBrandReply(brand),
+        persona: `${brand.name} partnerships`,
+        timestamp: Date.now() - 240_000,
+      });
+    }
+
+    return [{
+      id: `brand-${brandId}`,
+      kind: "brand" as ThreadKind,
+      creatorId: lead.id,
+      brandId,
+      campaignId,
+      status,
+      similarity: ranked[0]?.sim ?? 0.85,
+      draftMessage: buildBrandDraft(brand, campaign?.title ?? `${brand.name} Campaign`, lead, slate),
+      replies,
+    }];
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +355,7 @@ function OutreachInner() {
             const pay = computeSuggestedPay(creator, brand, impact);
             return {
               id: `${brandParam}-${id}-injected`,
+              kind: "creator" as ThreadKind,
               creatorId: id,
               brandId: brandParam,
               campaignId,
@@ -295,6 +372,7 @@ function OutreachInner() {
     return base;
   });
 
+  const [activeKind, setActiveKind] = useState<ThreadKind>("creator");
   const [activeTab, setActiveTab] = useState<TabName>("Pending");
   const [selectedId, setSelectedId] = useState<string>(() => {
     if (focusId) return focusId;
@@ -303,26 +381,41 @@ function OutreachInner() {
 
   const selectedThread = threads.find((t) => t.id === selectedId) ?? null;
 
+  const kindThreads = useMemo(
+    () => threads.filter((t) => t.kind === activeKind),
+    [threads, activeKind],
+  );
+
   const visibleThreads = useMemo(() => {
-    if (activeTab === "Pending") return threads.filter((t) => t.status === "pending" || t.status === "queued" || t.status === "drafting");
-    if (activeTab === "Sent") return threads.filter((t) => t.status === "sent");
-    if (activeTab === "Replied") return threads.filter((t) => t.status === "replied");
-    if (activeTab === "Negotiating") return threads.filter((t) => t.status === "negotiating");
-    return threads;
-  }, [threads, activeTab]);
+    if (activeTab === "Pending") return kindThreads.filter((t) => t.status === "pending" || t.status === "queued" || t.status === "drafting");
+    if (activeTab === "Sent") return kindThreads.filter((t) => t.status === "sent");
+    if (activeTab === "Replied") return kindThreads.filter((t) => t.status === "replied");
+    if (activeTab === "Negotiating") return kindThreads.filter((t) => t.status === "negotiating");
+    return kindThreads;
+  }, [kindThreads, activeTab]);
+
+  const kindCounts = useMemo(() => ({
+    creator: threads.filter((t) => t.kind === "creator").length,
+    brand: threads.filter((t) => t.kind === "brand").length,
+  }), [threads]);
+
+  const tabCountsForKind = useMemo(() => ({
+    Pending: kindThreads.filter((t) => t.status === "pending" || t.status === "queued" || t.status === "drafting").length,
+    Sent: kindThreads.filter((t) => t.status === "sent").length,
+    Replied: kindThreads.filter((t) => t.status === "replied").length,
+    Negotiating: kindThreads.filter((t) => t.status === "negotiating").length,
+  }), [kindThreads]);
 
   const updateThread = useCallback((id: string, patch: Partial<Thread>) => {
     setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }, []);
 
-  const pendingCount = threads.filter((t) => t.status === "pending" || t.status === "queued" || t.status === "drafting").length;
-
   const advanceToNext = useCallback((currentId: string) => {
-    const remaining = threads.filter(
+    const remaining = kindThreads.filter(
       (t) => (t.status === "pending" || t.status === "queued" || t.status === "drafting") && t.id !== currentId,
     );
     if (remaining.length > 0) setSelectedId(remaining[0].id);
-  }, [threads]);
+  }, [kindThreads]);
 
   return (
     <div>
@@ -334,17 +427,45 @@ function OutreachInner() {
         Haiku-drafted messages. Approve, edit, or skip. Replies come back simulated 4-8s after send.
       </p>
 
-      {/* Tabs */}
-      <div className="mt-5 flex gap-1 border-b border-[var(--border)]">
+      {/* Kind toggle: creator outreach vs brand outreach */}
+      <div className="mt-5 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-elev)] p-1">
+        {(["creator", "brand"] as ThreadKind[]).map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => {
+              setActiveKind(kind);
+              setActiveTab("Pending");
+              const first = threads.find(
+                (t) => t.kind === kind && (t.status === "pending" || t.status === "queued" || t.status === "drafting"),
+              ) ?? threads.find((t) => t.kind === kind);
+              if (first) setSelectedId(first.id);
+            }}
+            data-test-id={`outreach-kind-${kind}`}
+            className={[
+              "rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors",
+              activeKind === kind
+                ? "bg-[var(--bg)] text-[var(--fg)] shadow-sm"
+                : "text-[var(--fg-muted)] hover:text-[var(--fg)]",
+            ].join(" ")}
+          >
+            {kind === "creator" ? "Creator outreach" : "Brand outreach"}
+            <span className="ml-2 text-[11px] text-[var(--fg-subtle)]">{kindCounts[kind]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Status tabs (scoped to active kind) */}
+      <div className="mt-4 flex gap-1 border-b border-[var(--border)]">
         {(["Pending", "Sent", "Replied", "Negotiating"] as TabName[]).map((tab) => {
-          const count = tab === "Pending" ? pendingCount : TAB_COUNTS[tab];
+          const count = tabCountsForKind[tab];
           return (
             <button
               key={tab}
               data-test-id={`outreach-tab-${tab.toLowerCase()}`}
               onClick={() => {
                 setActiveTab(tab);
-                const first = threads.find((t) => {
+                const first = kindThreads.find((t) => {
                   if (tab === "Pending") return t.status === "pending" || t.status === "queued" || t.status === "drafting";
                   if (tab === "Sent") return t.status === "sent";
                   if (tab === "Replied") return t.status === "replied";
@@ -436,6 +557,35 @@ function ThreadRow({
   const preview = thread.draftMessage.slice(0, 72) + "…";
   const simPct = Math.round(thread.similarity * 100);
 
+  if (thread.kind === "brand") {
+    return (
+      <li
+        data-test-id={`outreach-thread-${thread.id}`}
+        onClick={onSelect}
+        className={[
+          "flex cursor-pointer items-start gap-3 border-b border-[var(--border)] p-4 transition-colors last:border-b-0",
+          selected ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--bg-hover)]",
+        ].join(" ")}
+      >
+        <BrandMark brand={brand} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[14px] font-medium truncate">{brand.name}</span>
+            <span className={statusClass(thread.status)} style={{ fontSize: 10, whiteSpace: "nowrap" }}>
+              {thread.status}
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span className="text-[11px] text-[var(--fg-muted)]">Mercor BD → {brand.name} partnerships</span>
+            <span className="text-[10px] text-[var(--fg-subtle)]">· lead {creator.name.split(" ")[0]}</span>
+          </div>
+          <p className="mt-1 truncate text-[11px] text-[var(--fg-muted)]">{preview}</p>
+        </div>
+        <ChevronRight size={14} className={selected ? "text-[var(--accent)]" : "text-[var(--fg-subtle)]"} />
+      </li>
+    );
+  }
+
   return (
     <li
       data-test-id={`outreach-thread-${thread.id}`}
@@ -523,7 +673,7 @@ function ThreadDetail({ thread, onUpdate, onAdvance }: DetailProps) {
           ...thread.replies,
           {
             id: `reply-${Date.now()}`,
-            text: simulatedReply(brand),
+            text: thread.kind === "brand" ? simulatedBrandReply(brand) : simulatedReply(brand),
             persona: `${brand.name} partnerships`,
             timestamp: Date.now(),
           },
@@ -576,31 +726,43 @@ function ThreadDetail({ thread, onUpdate, onAdvance }: DetailProps) {
   const isSent = thread.status === "sent" || thread.status === "replied" || thread.status === "negotiating";
   const hasReplies = thread.replies.length > 0;
 
+  const isBrandSide = thread.kind === "brand";
+
   return (
     <div className="flex flex-col gap-4">
       {/* Recap card */}
       <div className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-4">
         <div className="flex items-center gap-3">
-          <Avatar name={creator.name} size={40} />
+          {isBrandSide ? (
+            <BrandMark brand={brand} size={40} />
+          ) : (
+            <Avatar name={creator.name} size={40} />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[15px] font-semibold">{creator.name}</span>
+              <span className="text-[15px] font-semibold">{isBrandSide ? brand.name : creator.name}</span>
               <span className={statusClass(thread.status)} style={{ fontSize: 11 }}>
                 {thread.status}
               </span>
             </div>
             <div className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
-              {creator.handle} · {fmtFollowers(creator.followers)} followers
+              {isBrandSide
+                ? `Mercor BD → ${brand.name} partnerships`
+                : `${creator.handle} · ${fmtFollowers(creator.followers)} followers`}
             </div>
           </div>
           <div className="text-right">
-            <BrandMark brand={brand} size={24} />
+            {isBrandSide ? (
+              <Avatar name={creator.name} size={24} />
+            ) : (
+              <BrandMark brand={brand} size={24} />
+            )}
           </div>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-3 border-t border-[var(--border)] pt-3">
           <div>
-            <div className="label-cap">Brand</div>
-            <div className="mt-0.5 text-[13px] font-medium">{brand.name}</div>
+            <div className="label-cap">{isBrandSide ? "Lead creator" : "Brand"}</div>
+            <div className="mt-0.5 text-[13px] font-medium">{isBrandSide ? creator.name : brand.name}</div>
           </div>
           <div>
             <div className="label-cap">Campaign</div>
@@ -609,7 +771,7 @@ function ThreadDetail({ thread, onUpdate, onAdvance }: DetailProps) {
             </div>
           </div>
           <div>
-            <div className="label-cap">Suggested pay</div>
+            <div className="label-cap">{isBrandSide ? "Per-creator rate" : "Suggested pay"}</div>
             <div className="mt-0.5 text-[13px] font-medium">
               {fmtCurrency(pay.total_low)}-{fmtCurrency(pay.total_high)}
             </div>

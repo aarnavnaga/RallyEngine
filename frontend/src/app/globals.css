@@ -1,0 +1,238 @@
+@import "tailwindcss";
+
+/* Mercor 1:1 design tokens - extracted from work.mercor.com captures */
+:root {
+  --bg: #ffffff;
+  --bg-elev: #fafafa;
+  --bg-card: #ffffff;
+  --bg-hover: #f5f5f5;
+  --bg-promo: #f5f3ff;
+  --bg-app: #fafafa;
+  --fg: #0a0a0a;
+  --fg-muted: #6b7280;
+  --fg-subtle: #9ca3af;
+  --fg-faint: #d1d5db;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --accent: #7857ff;
+  --accent-hover: #6743f0;
+  --accent-soft: #ede9fe;
+  --accent-bar-paid: #7857ff;
+  --accent-bar-pending: #c4b5fd;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --danger: #dc2626;
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-pop: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-modal: 0 20px 50px rgba(0,0,0,0.12);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --tracking-tight: -0.02em;
+  --tracking-tightest: -0.04em;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elev: var(--bg-elev);
+  --color-bg-card: var(--bg-card);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-promo: var(--bg-promo);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: var(--tracking-tight);
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+button { letter-spacing: var(--tracking-tight); }
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Mercor microcopy: all-caps tracked labels */
+.label-cap {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.h-display {
+  font-family: var(--font-display, var(--font-sans));
+  letter-spacing: var(--tracking-tightest);
+  font-weight: 700;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.card-hover { transition: border-color 120ms ease, box-shadow 120ms ease; }
+.card-hover:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-pop);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background 120ms ease;
+  border: 1px solid var(--accent);
+}
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-outline {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background 120ms ease;
+}
+.btn-outline:hover { background: var(--bg-hover); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+.pill-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+
+.pill-success {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-soft);
+}
+
+.pill-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning-soft);
+}
+
+/* Subtle fade-in for landing */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fade-in 0.4s ease-out both; }
+
+/* Sidebar nav active indicator */
+.nav-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 0;
+  border-radius: 8px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+  font-size: 11px;
+  font-weight: 500;
+}
+.nav-row:hover { color: var(--fg); background: var(--bg-hover); }
+.nav-row.active { color: var(--accent); background: var(--bg-hover); }
+
+/* Data-table look */
+.dt-table { width: 100%; border-collapse: collapse; }
+.dt-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.dt-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--fg);
+}
+.dt-table tr:hover td { background: var(--bg-elev); }
+
+/* Confetti container - used by /jobs/apply/[id]/submitted */
+.confetti-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* Toast */
+.toast {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-pop);
+  font-size: 14px;
+  min-width: 280px;
+  max-width: 360px;
+  animation: fade-in 0.25s ease-out both;
+}
+
+/* Progress bar (Mercor-style) */
+.progress-rail {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-hover);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms ease;
+}

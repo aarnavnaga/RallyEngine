@@ -23,3 +23,19 @@ build/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Dev artifacts
+.playwright-mcp/
+mercor-tour/
+LIVE_STATUS.md
+.claude/
+
+# Frontend env
+frontend/.env*.local

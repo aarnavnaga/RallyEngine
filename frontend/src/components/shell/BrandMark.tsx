@@ -17,7 +17,25 @@ function isLocalPath(value: string): boolean {
   return value.startsWith("/");
 }
 
-export function BrandMark({ brand, size = 28 }: { brand: Brand; size?: number }) {
+type BrandMarkProps = {
+  brand: Brand;
+  size?: number;
+  /**
+   * When true, force eager image loading — use only for above-the-fold
+   * brand logos (e.g. the contract preview header). Default is lazy so
+   * grids/lists with many BrandMarks don't flood the network.
+   *
+   * Note: callers that reuse a single BrandMark instance for multiple
+   * brands (e.g. a contract preview that swaps brands on row click)
+   * should pass `key={brand.id}` to force remount and reset the
+   * onError-driven fallback chain. Without that, the level state from
+   * the previous brand can leak in and a missing logo only resolves
+   * after onError cycles through.
+   */
+  eager?: boolean;
+};
+
+export function BrandMark({ brand, size = 28, eager = false }: BrandMarkProps) {
   const domain = domainFromWebsite(brand.website);
   const clearbitSrc = `https://logo.clearbit.com/${domain}`;
   const googleSrc = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
@@ -31,17 +49,7 @@ export function BrandMark({ brand, size = 28 }: { brand: Brand; size?: number })
     (isAbsoluteUrl(brand.logo_url) || isLocalPath(brand.logo_url));
 
   const initialLevel: FallbackLevel = hasExplicitLogo ? "primary" : "clearbit";
-  // Reset fallback level when the brand changes — without this, the same
-  // BrandMark instance reused for a different brand keeps the old level and
-  // a missing logo only resolves after onError cycles through the chain.
-  // (Symptom: brand A's logo was cached at "primary", then re-rendered for
-  // brand B which has no logo_url, so src=undefined until onError fires.)
   const [level, setLevel] = useState<FallbackLevel>(initialLevel);
-  const [trackedBrandId, setTrackedBrandId] = useState(brand.id);
-  if (trackedBrandId !== brand.id) {
-    setTrackedBrandId(brand.id);
-    setLevel(initialLevel);
-  }
 
   if (level === "letter") {
     const initial = brand.name.replace(/[^A-Za-z]/g, "").slice(0, 1).toUpperCase();
@@ -96,8 +104,9 @@ export function BrandMark({ brand, size = 28 }: { brand: Brand; size?: number })
       <img
         src={src}
         alt={brand.name}
-        loading="eager"
+        loading={eager ? "eager" : "lazy"}
         decoding="async"
+        fetchPriority={eager ? "high" : "auto"}
         onError={handleError}
         style={{
           width: size - 4,

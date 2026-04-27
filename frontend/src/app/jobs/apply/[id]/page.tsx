@@ -9,6 +9,7 @@ import { LOGAN } from "@/lib/data/creators";
 import { fmtFollowers } from "@/lib/util/score";
 import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { ClaudeMark } from "@/components/shell/ClaudeMark";
+import { VideoInterviewStep } from "@/components/apply/VideoInterviewStep";
 
 type StepId = "resume" | "socials" | "interview" | "workauth";
 
@@ -44,6 +45,7 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
   const [igConnected, setIgConnected] = useState(false);
   const [interviewAnswers, setInterviewAnswers] = useState<string[]>(["", "", "", "", ""]);
   const [pageOf, setPageOf] = useState(0);
+  const [useTextInterview, setUseTextInterview] = useState<boolean>(false);
 
   const completedSteps = useMemo(
     () => Object.values(done).filter(Boolean).length,
@@ -151,7 +153,18 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
           />
         ) : null}
 
-        {activeStep === "interview" ? (
+        {activeStep === "interview" && !useTextInterview ? (
+          <VideoInterviewStep
+            creatorId={LOGAN.id}
+            campaignId={c.id}
+            campaignTitle={c.title}
+            done={done.interview}
+            onComplete={() => setDone((d) => ({ ...d, interview: true }))}
+            onFallbackToText={() => setUseTextInterview(true)}
+          />
+        ) : null}
+
+        {activeStep === "interview" && useTextInterview ? (
           <CreatorInterviewStep
             qIndex={pageOf}
             answers={interviewAnswers}

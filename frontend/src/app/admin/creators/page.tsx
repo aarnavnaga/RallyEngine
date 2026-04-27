@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CREATORS, type Creator, type CreatorStatus } from "@/lib/data/creators";
 import { BRANDS, BRANDS_BY_ID, type Brand } from "@/lib/data/brands";
 import { Avatar } from "@/components/shell/Avatar";
 import { computeImpact, fmtFollowers, similarity } from "@/lib/util/score";
+import { InterviewNotesCard } from "@/components/admin/InterviewNotesCard";
 
 export default function CreatorsPage() {
   return (
@@ -105,6 +106,9 @@ function CreatorsInner() {
           Sortable. Filterable. Every creator scored against a target brand of your choice.
         </span>
       </div>
+
+      {/* Interview notes for any creator that completed the AI video interview */}
+      <InterviewNotesPanel />
 
       {/* Filter bar */}
       <div className="mt-5 flex flex-wrap items-center gap-3 rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
@@ -339,6 +343,53 @@ function SimilarityBar({ pct }: { pct: number }) {
         <div className="h-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
       </div>
       <span className="text-[12px] tabular-nums">{(pct / 100).toFixed(2)}</span>
+    </div>
+  );
+}
+
+function InterviewNotesPanel() {
+  // Scan localStorage for any creator interview records and surface them at
+  // the top of the admin pipeline so reviewers see the AI's video assessment.
+  const [creatorIds, setCreatorIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const ids: string[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        const m = key.match(/^mercor\.interview\.(.+)\.v1$/);
+        if (m && m[1]) ids.push(m[1]);
+      }
+    } catch {
+      // localStorage may be unavailable (SSR, incognito).
+    }
+    // De-dupe and intersect with known creators so we don't show stale ids.
+    const validIds = Array.from(new Set(ids)).filter((id) =>
+      CREATORS.some((c) => c.id === id),
+    );
+    setCreatorIds(validIds);
+  }, []);
+
+  if (creatorIds.length === 0) return null;
+
+  return (
+    <div className="mt-5 grid grid-cols-1 gap-4" data-test-id="interview-notes-panel">
+      {creatorIds.map((id) => {
+        const creator = CREATORS.find((c) => c.id === id);
+        return (
+          <div key={id}>
+            {creator ? (
+              <div className="mb-2 flex items-center gap-2 text-[12px] text-[var(--fg-muted)]">
+                <Avatar name={creator.name} size={20} />
+                <span className="font-medium text-[var(--fg)]">{creator.name}</span>
+                <span>· {creator.handle}</span>
+              </div>
+            ) : null}
+            <InterviewNotesCard creatorId={id} />
+          </div>
+        );
+      })}
     </div>
   );
 }

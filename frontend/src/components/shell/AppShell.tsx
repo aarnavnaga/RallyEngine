@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)]">
       <Sidebar />
-      <main className="ml-[80px] min-h-screen">
+      <main className="ml-[88px] min-h-screen">
         <div className="w-full px-10 py-10">{children}</div>
         <MercorFooter />
       </main>

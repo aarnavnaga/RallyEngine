@@ -166,14 +166,15 @@ button { letter-spacing: var(--tracking-tight); }
 }
 .fade-in { animation: fade-in 0.4s ease-out both; }
 
-/* Sidebar nav row - mirrors work.mercor.com sidebar item spec */
+/* Sidebar nav row - mirrors work.mercor.com sidebar item spec
+   (88px-wide rail, icon-over-label, subtle gray active state). */
 .nav-row {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 12px 4px;
+  gap: 5px;
+  padding: 10px 4px 9px;
   border-radius: 10px;
   color: var(--fg-muted);
   cursor: pointer;
@@ -181,9 +182,10 @@ button { letter-spacing: var(--tracking-tight); }
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.005em;
+  line-height: 1.1;
 }
 .nav-row:hover { color: var(--fg); background: var(--bg-hover); }
-.nav-row.active { color: var(--accent); background: var(--accent-soft); }
+.nav-row.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 
 /* Data-table look */
 .dt-table { width: 100%; border-collapse: collapse; }

@@ -178,15 +178,55 @@ type StoredState = {
   customItems: ActionItem[];
 };
 
+const VALID_KPI_IDS: ReadonlySet<KpiId> = new Set([
+  "brand_voice_fit",
+  "comment_relevance",
+  "audience_overlap",
+  "auto_draft_queue",
+]);
+const VALID_PRIORITIES: ReadonlySet<ActionItem["priority"]> = new Set(["high", "med", "low"]);
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function sanitizeActionItem(v: unknown): ActionItem | null {
+  if (!isRecord(v)) return null;
+  if (typeof v.id !== "string" || typeof v.text !== "string") return null;
+  if (!VALID_PRIORITIES.has(v.priority as ActionItem["priority"])) return null;
+  if (!Array.isArray(v.kpiTargets)) return null;
+  const kpiTargets = v.kpiTargets
+    .filter((t): t is Record<string, unknown> => isRecord(t))
+    .filter(
+      (t): t is KpiTarget =>
+        VALID_KPI_IDS.has(t.kpiId as KpiId) && typeof t.delta === "number" && Number.isFinite(t.delta),
+    );
+  return {
+    id: v.id,
+    text: v.text,
+    priority: v.priority as ActionItem["priority"],
+    kpiTargets,
+    kpiTagLabel: typeof v.kpiTagLabel === "string" ? v.kpiTagLabel : "",
+    href: typeof v.href === "string" ? v.href : "/admin",
+    cta: typeof v.cta === "string" ? v.cta : "Open →",
+    custom: true,
+  };
+}
+
 function loadState(): StoredState {
   if (typeof window === "undefined") return { doneIds: [], customItems: [] };
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { doneIds: [], customItems: [] };
-    const parsed = JSON.parse(raw) as StoredState;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return { doneIds: [], customItems: [] };
     return {
-      doneIds: Array.isArray(parsed.doneIds) ? parsed.doneIds : [],
-      customItems: Array.isArray(parsed.customItems) ? parsed.customItems : [],
+      doneIds: Array.isArray(parsed.doneIds)
+        ? parsed.doneIds.filter((x): x is string => typeof x === "string")
+        : [],
+      customItems: Array.isArray(parsed.customItems)
+        ? parsed.customItems.map(sanitizeActionItem).filter((x): x is ActionItem => x !== null)
+        : [],
     };
   } catch {
     return { doneIds: [], customItems: [] };

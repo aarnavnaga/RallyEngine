@@ -3,7 +3,7 @@
 // One-shot at build/seed time. No runtime cost. No paid API.
 //
 // Usage:
-//   GEMINI_API_KEY=... pnpm exec tsx scripts/build-embeddings.mts
+//   GEMINI_API_KEY=... pnpm exec tsx scripts/build-embeddings.ts
 //
 // Free tier: 30 req/min on the embedding model. We batch with batchEmbedContents
 // (up to 100 docs per request), so the full index fits in 1-3 calls.

@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     title: "Mercor | Creators & Influencers",
     description:
       "The Creators & Influencers expert vertical on the Mercor platform.",
-    url: "https://rallyai.org",
+    url: "https://musing-maxwell-84ed29.vercel.app",
     siteName: "Mercor",
     type: "website",
   },

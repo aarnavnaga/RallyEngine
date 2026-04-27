@@ -62,6 +62,7 @@ Both flows share the same Mercor design tokens, the same Explore grid, the same 
 ### Admin flow (Aaron Langerman · Mercor Strategic Ops)
 - **`/admin`** — KPIs (active campaigns, onboarded creators, pending review, GMV last 7d) + Pending / Onboarded / Applied / Auto-drafted / All applicant tabs
 - **`/admin/creators`** — pipeline data table sorted by Impact Score
+- **`/admin/campaigns`** — campaign index list (KPIs + per-brand campaign rows)
 - **`/admin/match`** — manual matching workbench. Pick a brand → ranked creators with similarity, impact, suggested pay
 - Expand any row → cosine-sim breakdown citing **specific TikTok URLs by URL** (e.g. `tiktok.com/@loganmann32/video/7608429326211501326`) in the rationale paragraph
 - `?focus=loganmann32` URL param pins Logan to the top so the cite-by-URL "wow moment" always works

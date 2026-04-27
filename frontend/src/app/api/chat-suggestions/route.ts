@@ -18,16 +18,6 @@ interface Suggestion {
   text: string;
 }
 
-// Per-field limits — without these, a malicious client could send unbounded
-// strings or a huge `history` array and force the server to bill Gemini for
-// a multi-MB generateContent call. Mirrors the caps in /api/interview/turn.
-const MAX_MESSAGES = 60;
-const MAX_CONTENT_LEN = 4000;
-const MAX_FIELD_LEN = 500;
-// Hard total-payload cap — refuses oversized requests at the boundary
-// before we parse JSON.
-const MAX_BYTES = 256_000;
-
 interface GeminiCandidate {
   content?: { parts?: { text?: string }[] };
 }
@@ -94,50 +84,11 @@ function parseJsonResponse(raw: string): Suggestion[] | null {
 }
 
 export async function POST(req: NextRequest) {
-  // Pre-parse content-length cap — reject oversized payloads early before
-  // we read or parse the body.
-  const lenHeader = req.headers.get("content-length");
-  if (lenHeader && Number(lenHeader) > MAX_BYTES) {
-    return NextResponse.json({ error: "payload too large" }, { status: 413 });
-  }
-
   let body: SuggestBody;
   try {
     body = (await req.json()) as SuggestBody;
   } catch {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  }
-
-  // Validate short string fields are bounded so a client cannot stuff
-  // arbitrary multi-MB strings into the Gemini prompt via the system/user
-  // prompt builders.
-  const stringFields: [string, unknown][] = [
-    ["side", body.side],
-    ["counterpartyName", body.counterpartyName],
-    ["brandName", body.brandName],
-    ["campaignTitle", body.campaignTitle],
-    ["stage", body.stage],
-  ];
-  for (const [, value] of stringFields) {
-    if (typeof value !== "string" || value.length > MAX_FIELD_LEN) {
-      return NextResponse.json({ error: "payload too large" }, { status: 400 });
-    }
-  }
-
-  if (!body.history || !Array.isArray(body.history)) {
-    return NextResponse.json({ error: "history required" }, { status: 400 });
-  }
-  if (body.history.length > MAX_MESSAGES) {
-    return NextResponse.json({ error: "payload too large" }, { status: 400 });
-  }
-  for (const m of body.history) {
-    if (!m || typeof m !== "object") {
-      return NextResponse.json({ error: "payload too large" }, { status: 400 });
-    }
-    const text = (m as { text?: unknown }).text;
-    if (typeof text !== "string" || text.length > MAX_CONTENT_LEN) {
-      return NextResponse.json({ error: "payload too large" }, { status: 400 });
-    }
   }
 
   const apiKey = process.env.GEMINI_API_KEY;

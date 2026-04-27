@@ -653,6 +653,7 @@ function DealDetail({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<Deal
           active={side === "creator"}
           onClick={() => setSide("creator")}
           icon={<Avatar name={creator.name} size={16} />}
+          kind="creator"
           label={`Aaron → ${creator.name.split(" ")[0]}`}
           unread={deal.creatorChat.messages[deal.creatorChat.messages.length - 1]?.from === "creator"}
         />
@@ -660,6 +661,7 @@ function DealDetail({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<Deal
           active={side === "brand"}
           onClick={() => setSide("brand")}
           icon={<BrandMark brand={brand} size={16} />}
+          kind="brand"
           label={`Aaron → ${brand.name}`}
           unread={deal.brandChat.messages[deal.brandChat.messages.length - 1]?.from === "brand"}
         />
@@ -678,7 +680,10 @@ function DealDetail({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<Deal
   );
 }
 
-function ChatTab({ active, onClick, icon, label, unread }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; unread: boolean }) {
+function ChatTab({ active, onClick, icon, label, unread, kind }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; unread: boolean; kind: "creator" | "brand" }) {
+  const kindStyle = kind === "creator"
+    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+    : "bg-[#fef3c7] text-[#92400e]";
   return (
     <button
       type="button"
@@ -690,6 +695,9 @@ function ChatTab({ active, onClick, icon, label, unread }: { active: boolean; on
           : "border-transparent bg-transparent text-[var(--fg-muted)] hover:text-[var(--fg)]",
       ].join(" ")}
     >
+      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${kindStyle}`}>
+        {kind === "creator" ? "Creator" : "Brand"}
+      </span>
       {icon}
       {label}
       {unread ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" aria-label="unread reply" /> : null}
@@ -754,7 +762,7 @@ function ChatPanel({
   const suggestions = useMemo(() => buildSuggestions(deal, side, creator, brand), [deal, side, creator, brand]);
 
   const sendMessage = useCallback(
-    (text: string) => {
+    async (text: string) => {
       if (!text.trim()) return;
       const message: Message = {
         id: `m-${side}-${Date.now()}`,
@@ -764,45 +772,74 @@ function ChatPanel({
       };
       setDraft("");
       setWaiting(true);
+      const chatKey = side === "creator" ? "creatorChat" : "brandChat";
       onUpdate((d) => ({
-        [side === "creator" ? "creatorChat" : "brandChat"]: {
-          ...d[side === "creator" ? "creatorChat" : "brandChat"],
-          messages: [...d[side === "creator" ? "creatorChat" : "brandChat"].messages, message],
+        [chatKey]: {
+          ...d[chatKey],
+          messages: [...d[chatKey].messages, message],
           draft: "",
         },
       }));
-      // Simulated reply 4-7s later, plus stage advance if both sides have replied at least once.
-      const delay = 4000 + Math.random() * 3000;
-      setTimeout(() => {
-        const replyText = side === "creator" ? simulatedCreatorReply(brand, creator) : simulatedBrandReply(brand, creator);
-        const reply: Message = {
-          id: `r-${side}-${Date.now()}`,
-          from: side,
-          text: replyText,
-          timestamp: Date.now(),
-        };
-        onUpdate((d) => {
-          const chatKey = side === "creator" ? "creatorChat" : "brandChat";
-          const updatedChat = {
-            ...d[chatKey],
-            messages: [...d[chatKey].messages, reply],
-          };
-          // Stage progression: if we're in outreach and got our first reply on
-          // either side, advance to negotiating with a contract attached.
-          let stage: DealStage = d.stage;
-          let contract = d.contract;
-          if (d.stage === "outreach") {
-            stage = "negotiating";
-            const impact = computeImpact(creator, brand);
-            const pay = computeSuggestedPay(creator, brand, impact);
-            contract = buildContract(creator, brand, pay.total_low, pay.total_high);
-          }
-          return { [chatKey]: updatedChat, stage, contract };
+
+      const impact = computeImpact(creator, brand);
+      const pay = computeSuggestedPay(creator, brand, impact);
+      const baseRateLow = deal.contract?.base_pay ?? pay.total_low;
+      const baseRateHigh = (deal.contract?.base_pay ?? pay.total_high) + 200;
+      const campaignTitle = CAMPAIGNS_BY_ID[deal.campaignId]?.title ?? `${brand.name} campaign`;
+
+      const history = [
+        ...(side === "creator" ? deal.creatorChat.messages : deal.brandChat.messages),
+        message,
+      ].map((m) => ({ from: m.from, text: m.text }));
+
+      let replyText: string;
+      try {
+        const resp = await fetch("/api/chat-reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            side,
+            counterpartyName: side === "creator" ? creator.name : brand.name,
+            brandName: brand.name,
+            campaignTitle,
+            baseRateLow,
+            baseRateHigh,
+            history,
+            lastAaronMessage: text.trim(),
+          }),
         });
-        setWaiting(false);
-      }, delay);
+        if (resp.ok) {
+          const data: { text?: string } = await resp.json();
+          replyText = data.text?.trim() || (side === "creator" ? simulatedCreatorReply(brand, creator) : simulatedBrandReply(brand, creator));
+        } else {
+          replyText = side === "creator" ? simulatedCreatorReply(brand, creator) : simulatedBrandReply(brand, creator);
+        }
+      } catch {
+        replyText = side === "creator" ? simulatedCreatorReply(brand, creator) : simulatedBrandReply(brand, creator);
+      }
+
+      const reply: Message = {
+        id: `r-${side}-${Date.now()}`,
+        from: side,
+        text: replyText,
+        timestamp: Date.now(),
+      };
+      onUpdate((d) => {
+        const updatedChat = {
+          ...d[chatKey],
+          messages: [...d[chatKey].messages, reply],
+        };
+        let stage: DealStage = d.stage;
+        let contract = d.contract;
+        if (d.stage === "outreach") {
+          stage = "negotiating";
+          contract = buildContract(creator, brand, pay.total_low, pay.total_high);
+        }
+        return { [chatKey]: updatedChat, stage, contract };
+      });
+      setWaiting(false);
     },
-    [side, brand, creator, onUpdate],
+    [side, brand, creator, onUpdate, deal.contract, deal.campaignId, deal.creatorChat.messages, deal.brandChat.messages],
   );
 
   return (
@@ -832,8 +869,9 @@ function ChatPanel({
               key={s.label}
               type="button"
               data-test-id={`outreach-suggest-${s.label.toLowerCase().replace(/\s+/g, "-")}`}
-              onClick={() => setDraft(s.text)}
-              className="rounded-[10px] border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left text-[12px] hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
+              disabled={waiting}
+              onClick={() => sendMessage(s.text)}
+              className="rounded-[10px] border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left text-[12px] hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="font-semibold text-[var(--fg)]">{s.label}</div>
               <div className="mt-0.5 line-clamp-2 text-[11px] text-[var(--fg-muted)]">{s.text}</div>

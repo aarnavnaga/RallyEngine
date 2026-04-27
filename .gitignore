@@ -40,3 +40,4 @@ LIVE_STATUS.md
 
 # Frontend env
 frontend/.env*.local
+frontend/.vercel/

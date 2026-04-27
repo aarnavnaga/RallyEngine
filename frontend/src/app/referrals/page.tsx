@@ -130,7 +130,8 @@ interface VouchModalProps {
 
 function VouchModal({ name, onClose, onVouched }: VouchModalProps) {
   const [step, setStep] = useState(1);
-  const [autoFill, setAutoFill] = useState(true);
+  // Default off so a Vouch starts as a blank-form (opt-in to auto-fill).
+  const [autoFill, setAutoFill] = useState(false);
   const [knowHow, setKnowHow] = useState<Set<number>>(new Set());
   const [recommend, setRecommend] = useState<Set<number>>(new Set());
   const [texts, setTexts] = useState({ education: "", employer: "", expertise: "" });
@@ -411,6 +412,8 @@ function ConnectionsTab({ vouched, onVouch }: ConnectionsTabProps) {
   const [topMatchOnly, setTopMatchOnly] = useState(false);
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [listingsFilter, setListingsFilter] = useState<"All" | "1+" | "2+" | "3+">("All");
+  const [listingsOpen, setListingsOpen] = useState(false);
 
   const items = useMemo(() => {
     let list = [...FRIENDS];
@@ -424,8 +427,12 @@ function ConnectionsTab({ vouched, onVouch }: ConnectionsTabProps) {
       );
     }
     if (topMatchOnly) list = list.filter((f) => f.matches >= 3);
+    if (listingsFilter !== "All") {
+      const min = parseInt(listingsFilter, 10);
+      list = list.filter((f) => f.matches >= min);
+    }
     return list.sort((a, b) => b.potential - a.potential);
-  }, [filter, topMatchOnly]);
+  }, [filter, topMatchOnly, listingsFilter]);
 
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -455,9 +462,27 @@ function ConnectionsTab({ vouched, onVouch }: ConnectionsTabProps) {
 
       {/* Filter row */}
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <button className="flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]">
-          Listings <ChevronDown size={12} />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setListingsOpen((v) => !v)}
+            className="flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]"
+          >
+            Listings{listingsFilter === "All" ? "" : `: ${listingsFilter}`} <ChevronDown size={12} />
+          </button>
+          {listingsOpen ? (
+            <div className="absolute left-0 top-10 z-20 min-w-[140px] rounded-md border border-[var(--border)] bg-[var(--bg-card)] py-1 shadow-[var(--shadow-card)]">
+              {(["All", "1+", "2+", "3+"] as const).map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => { setListingsFilter(opt); setListingsOpen(false); setPage(0); }}
+                  className={`block w-full px-3 py-1.5 text-left text-[13px] hover:bg-[var(--bg-hover)] ${listingsFilter === opt ? "text-[var(--accent)] font-medium" : ""}`}
+                >
+                  {opt === "All" ? "All listings" : `${opt} listings`}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <button
           onClick={() => setTopMatchOnly((v) => !v)}
           className={`flex items-center gap-1 rounded-md border px-3 py-1.5 text-[13px] transition-colors ${topMatchOnly ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] hover:bg-[var(--bg-hover)]"}`}
@@ -625,22 +650,37 @@ function FriendRow({
         <td>
           <div className="flex items-center gap-1.5">
             {f.reach_via.includes("tiktok") && (
-              <span
-                title="TikTok"
-                className="grid h-6 w-6 place-items-center rounded-md bg-[var(--bg-hover)] text-[12px] font-bold leading-none"
-                style={{ fontFamily: "monospace" }}
+              <a
+                href={`https://www.tiktok.com/${f.handle_tiktok}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${f.handle_tiktok} on TikTok`}
+                onClick={(e) => e.stopPropagation()}
+                className="grid h-6 w-6 place-items-center rounded-md bg-black text-white transition hover:scale-105"
+                aria-label="Open on TikTok"
               >
-                TT
-              </span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.94A8.16 8.16 0 0 0 22 11V7.79a4.85 4.85 0 0 1-2.41-1.1Z" />
+                </svg>
+              </a>
             )}
             {f.reach_via.includes("instagram") && (
-              <span
-                title="Instagram"
-                className="grid h-6 w-6 place-items-center rounded-md bg-[var(--bg-hover)] text-[12px] font-bold leading-none"
-                style={{ fontFamily: "monospace" }}
+              <a
+                href={`https://instagram.com/${f.handle_tiktok.replace(/^@/, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open ${f.handle_tiktok} on Instagram`}
+                onClick={(e) => e.stopPropagation()}
+                className="grid h-6 w-6 place-items-center rounded-md text-white transition hover:scale-105"
+                style={{ background: "linear-gradient(135deg, #f58529 0%, #dd2a7b 50%, #515bd4 100%)" }}
+                aria-label="Open on Instagram"
               >
-                IG
-              </span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                </svg>
+              </a>
             )}
           </div>
         </td>
@@ -704,14 +744,23 @@ function FriendRow({
 // ---------------------------------------------------------------------------
 interface ReferralsTabProps {
   extraCount: number; // vouches added during this session
+  pushToast: (text: string) => void;
 }
 
-function ReferralsTab({ extraCount }: ReferralsTabProps) {
+function ReferralsTab({ extraCount, pushToast }: ReferralsTabProps) {
   const [period, setPeriod] = useState<"ALL" | "1D" | "3D" | "7D">("ALL");
+  const [listingsFilter, setListingsFilter] = useState<"All" | "1+" | "2+" | "3+">("All");
+  const [listingsOpen, setListingsOpen] = useState(false);
 
   const buckets = FUNNEL_BUCKETS.map((b) =>
     b.label === "Application Started" ? { ...b, count: b.count + extraCount } : b,
   );
+
+  const totalReferees = 1 + extraCount;
+
+  function handleBulkReminder() {
+    pushToast(`Reminder queued to ${totalReferees} referee${totalReferees === 1 ? "" : "s"}.`);
+  }
 
   return (
     <div>
@@ -768,10 +817,31 @@ function ReferralsTab({ extraCount }: ReferralsTabProps) {
         <button className="flex items-center gap-1 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1.5 text-[12px] text-[var(--accent)]">
           <Sparkles size={11} /> Status: Application Started <ChevronDown size={11} />
         </button>
-        <button className="flex items-center gap-1 rounded-full border border-[var(--border)] px-3 py-1.5 text-[12px] hover:bg-[var(--bg-hover)]">
-          Listings <ChevronDown size={11} />
-        </button>
-        <button className="flex items-center gap-1 rounded-full border border-[var(--border)] px-3 py-1.5 text-[12px] hover:bg-[var(--bg-hover)]">
+        <div className="relative">
+          <button
+            onClick={() => setListingsOpen((v) => !v)}
+            className="flex items-center gap-1 rounded-full border border-[var(--border)] px-3 py-1.5 text-[12px] hover:bg-[var(--bg-hover)]"
+          >
+            Listings{listingsFilter === "All" ? "" : `: ${listingsFilter}`} <ChevronDown size={11} />
+          </button>
+          {listingsOpen ? (
+            <div className="absolute left-0 top-9 z-20 min-w-[140px] rounded-md border border-[var(--border)] bg-[var(--bg-card)] py-1 shadow-[var(--shadow-card)]">
+              {(["All", "1+", "2+", "3+"] as const).map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => { setListingsFilter(opt); setListingsOpen(false); }}
+                  className={`block w-full px-3 py-1.5 text-left text-[12px] hover:bg-[var(--bg-hover)] ${listingsFilter === opt ? "text-[var(--accent)] font-medium" : ""}`}
+                >
+                  {opt === "All" ? "All listings" : `${opt} listings`}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <button
+          onClick={handleBulkReminder}
+          className="flex items-center gap-1 rounded-full border border-[var(--border)] px-3 py-1.5 text-[12px] hover:bg-[var(--bg-hover)]"
+        >
           <Bell size={11} /> Bulk Reminder
         </button>
         <input
@@ -929,7 +999,7 @@ export default function ReferralsPage() {
         {tab === "connections" ? (
           <ConnectionsTab vouched={vouched} onVouch={handleVouchStart} />
         ) : (
-          <ReferralsTab extraCount={newVouchCount} />
+          <ReferralsTab extraCount={newVouchCount} pushToast={showToast} />
         )}
       </div>
     </>

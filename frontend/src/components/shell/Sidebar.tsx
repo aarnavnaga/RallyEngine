@@ -1,18 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+// LOCKED ICON SET — copies work.mercor.com Logan-side sidebar 1:1.
+// DO NOT swap these icons. Logan reinforced 2026-04-27 with the work.mercor.com
+// /refer screenshot: "use these icons exactly forever and never change no
+// matter what". The mapping below is the canonical answer:
+//   Explore   → Search       (magnifying glass)
+//   Home      → Home          (house)
+//   Referrals → UserPlus      (single person + plus badge — NOT Users/group)
+//   Earnings  → CreditCard    (rectangular card)
+//   Profile   → User          (single person silhouette)
 import {
   Search,
   Home,
   UserPlus,
-  CircleDollarSign,
+  CreditCard,
   User as UserIcon,
   LayoutDashboard,
   TableProperties,
   Inbox,
   TrendingUp,
-  Send,
 } from "lucide-react";
 import { NotificationsDropdown } from "@/components/shell/NotificationsDropdown";
 import { CookieConsentButton } from "@/components/shell/CookieConsent";
@@ -21,26 +29,40 @@ import clsx from "clsx";
 
 type Item = { href: string; label: string; icon: React.ElementType; testId?: string };
 
+// Mirrors work.mercor.com Logan-side sidebar 1:1: 5 items, no Deliverables.
+// (Deliverables is still reachable via /home → Contracts row + /contracts/[id]
+// CTAs — Mercor doesn't surface a UGC deliverables route, so it stays out of
+// the rail to match.)
 const CREATOR_ITEMS: Item[] = [
   { href: "/explore", label: "Explore", icon: Search },
   { href: "/home", label: "Home", icon: Home },
   { href: "/referrals", label: "Referrals", icon: UserPlus },
-  { href: "/earnings", label: "Earnings", icon: CircleDollarSign },
-  { href: "/deliverables", label: "Deliverables", icon: Send, testId: "nav-deliverables" },
+  { href: "/earnings", label: "Earnings", icon: CreditCard },
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 
 const ADMIN_ITEMS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/creators", label: "Creators & Match", icon: TableProperties },
+  { href: "/admin/creators", label: "Experts", icon: TableProperties },
   { href: "/admin/outreach", label: "Outreach", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: TrendingUp },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { identity, switchPersona } = useUser();
   const items = identity?.persona === "admin" ? ADMIN_ITEMS : CREATOR_ITEMS;
+
+  function handleSwitchPersona() {
+    // Land on each persona's home: creator → /explore, admin → /admin.
+    // Without this, switching from /admin/campaigns to creator left the URL
+    // on the admin route with creator nav showing — no nav item matched the
+    // path so nothing highlighted.
+    const nextPersona = identity?.persona === "admin" ? "creator" : "admin";
+    switchPersona();
+    router.push(nextPersona === "admin" ? "/admin" : "/explore");
+  }
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 z-30 flex w-[88px] flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg)] py-4">
@@ -80,9 +102,8 @@ export function Sidebar() {
               >
                 <Icon
                   size={22}
-                  strokeWidth={active ? 1.6 : 1.5}
-                  fill={active ? "currentColor" : "none"}
-                  stroke={active ? "var(--bg)" : "currentColor"}
+                  strokeWidth={active ? 2 : 1.5}
+                  fill="none"
                 />
                 <span>{item.label}</span>
               </Link>
@@ -96,7 +117,7 @@ export function Sidebar() {
         <CookieConsentButton />
         <NotificationsDropdown />
         <button
-          onClick={switchPersona}
+          onClick={handleSwitchPersona}
           className="mt-1 grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[var(--bg-hover)] text-[12px] font-semibold text-[var(--fg-muted)] ring-1 ring-[var(--border)] hover:ring-2 hover:ring-[var(--accent-soft)]"
           aria-label="Switch persona"
           title="Switch persona"

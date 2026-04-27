@@ -101,9 +101,9 @@ function CreatorsInner() {
     <div>
       {/* Header */}
       <div className="flex items-baseline justify-between">
-        <h1 className="h-display text-[28px]">Creator pipeline</h1>
+        <h1 className="h-display text-[28px]">Expert pipeline</h1>
         <span className="text-[12px] text-[var(--fg-muted)]">
-          Sortable. Filterable. Every creator scored against a target brand of your choice.
+          Sortable. Filterable. Every expert scored against a target brand of your choice.
         </span>
       </div>
 

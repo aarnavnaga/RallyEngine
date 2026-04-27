@@ -185,7 +185,7 @@ button { letter-spacing: var(--tracking-tight); }
   line-height: 1.1;
 }
 .nav-row:hover { color: var(--fg); background: var(--bg-hover); }
-.nav-row.active { color: var(--fg); background: var(--bg-hover); font-weight: 600; }
+.nav-row.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 
 /* Data-table look */
 .dt-table { width: 100%; border-collapse: collapse; }

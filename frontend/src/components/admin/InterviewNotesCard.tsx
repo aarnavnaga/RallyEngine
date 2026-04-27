@@ -7,12 +7,13 @@ import type {
   InterviewMessage,
 } from "@/app/api/interview/finalize/route";
 import type { CheatingLevel } from "@/app/api/interview/observe/route";
+import {
+  CHEATING_RANK,
+  aggregateCheating,
+} from "@/lib/interview/aggregate";
 
 const STORAGE_KEY_PREFIX = "mercor.interview.";
 const STORAGE_VERSION = "v1";
-// Frames below this confidence threshold are too noisy to count toward the
-// integrity tally (the vision model itself is unsure what it saw).
-const CHEATING_CONFIDENCE_FLOOR = 0.3;
 
 interface StoredInterview {
   transcript: InterviewMessage[];
@@ -27,60 +28,12 @@ interface InterviewNotesCardProps {
   creatorId: string;
 }
 
-const CHEATING_RANK: Record<CheatingLevel, number> = {
-  none: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
-
 const CHEATING_PILL: Record<CheatingLevel, string> = {
   none: "pill-success",
   low: "pill-accent",
   medium: "pill-warning",
   high: "pill-danger",
 };
-
-// Debounced aggregator: a single noisy frame should not flip the integrity
-// badge. We require ≥2 *consecutive* frames at a given level before promoting
-// the badge to that level. Frames whose confidence is below the floor are
-// skipped from the tally entirely.
-function aggregateCheating(scores: InterviewFrameScore[]): CheatingLevel {
-  let highRun = 0;
-  let mediumRun = 0;
-  let sawAnyLow = false;
-  let badge: CheatingLevel = "none";
-  for (const s of scores) {
-    if (s.confidence < CHEATING_CONFIDENCE_FLOOR) {
-      // Reset both runs — this frame is too noisy to count either way.
-      highRun = 0;
-      mediumRun = 0;
-      continue;
-    }
-    const rank = CHEATING_RANK[s.cheating];
-    if (rank >= CHEATING_RANK.high) {
-      highRun += 1;
-      mediumRun += 1;
-    } else if (rank >= CHEATING_RANK.medium) {
-      highRun = 0;
-      mediumRun += 1;
-    } else if (rank >= CHEATING_RANK.low) {
-      highRun = 0;
-      mediumRun = 0;
-      sawAnyLow = true;
-    } else {
-      highRun = 0;
-      mediumRun = 0;
-    }
-    if (highRun >= 2) {
-      badge = "high";
-    } else if (mediumRun >= 2 && badge !== "high") {
-      badge = "medium";
-    }
-  }
-  if (badge === "high" || badge === "medium") return badge;
-  return sawAnyLow ? "low" : "none";
-}
 
 function computeAggregate(scores: InterviewFrameScore[]): {
   confidence: number;

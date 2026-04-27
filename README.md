@@ -70,6 +70,11 @@ Both flows share the same Mercor design tokens, the same Explore grid, the same 
 - **Interview notes card** — propagates VideoInterview transcript + confidence/cheating scores into Aaron's dashboard per creator
 
 ### AI / RAG layer
+- **Real semantic embeddings** via Gemini `gemini-embedding-001` (768d, **100% free tier**). Indexed at build time → static `frontend/src/lib/data/embeddings.json` (33 brands + 45 creators + 13 cited posts). Zero runtime API cost. Reproducible.
+- **Cosine similarity** at runtime in pure TS — `cosineSim()` in [score.ts](frontend/src/lib/util/score.ts), blended 55% semantic + 45% keyword-fuzz so the demo's headline numbers stay calibrated for the 0.4–0.95 UI band
+- **Per-cited-post cosine ranker** — picks the highest-cosine TikTok video for each (creator, brand) pair so the rationale paragraph cites the most-relevant URL by URL
+- **Auto-cite cosine in rationale** — every match card now prints `Cosine sim 0.XX.` after the human-readable reason
+- Indexer script: [`scripts/build-embeddings.ts`](frontend/scripts/build-embeddings.ts) — `pnpm exec tsx scripts/build-embeddings.ts` to rebuild the index after data changes
 - **`/api/chat-suggestions`** — Gemini-backed quick-reply chip generator for Aaron's outreach approval queue
 - **`/api/chat-reply`** — Gemini persona-aware counterparty reply simulator (creator vs brand, base-rate aware, in-character)
 - **`/api/interview/turn`** — Gemini interviewer that adapts questions to interviewee responses

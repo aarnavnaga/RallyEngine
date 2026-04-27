@@ -1,8 +1,63 @@
 // Impact score + relevant-eyes pricing math, transparent and reproducible.
 // Mirrors agent/impact.py + agent/relevance.py shapes.
+//
+// Similarity blends a real semantic cosine (Gemini gemini-embedding-001, 768d,
+// pre-baked at build time into embeddings.json — 100% free, zero runtime cost)
+// with the deterministic keyword-fuzz heuristic. The blend gives the demo
+// real RAG-style matching while preserving hand-tuned persona rules so the
+// Logan x Celsius "wow moment" stays reproducible on stage.
 
 import type { Creator } from "@/lib/data/creators";
 import type { Brand } from "@/lib/data/brands";
+import EMBEDDINGS from "@/lib/data/embeddings.json";
+
+type EmbedIndex = {
+  schema_version: number;
+  model: string;
+  dim: number;
+  built_at: string;
+  brands: Record<string, number[]>;
+  creators: Record<string, number[]>;
+  posts: Record<string, number[]>;
+};
+
+const IDX = EMBEDDINGS as EmbedIndex;
+
+function cosineSim(a: number[] | undefined, b: number[] | undefined): number | null {
+  if (!a || !b || a.length !== b.length || a.length === 0) return null;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom > 0 ? dot / denom : null;
+}
+
+export function embeddingSimilarity(creatorId: string, brandId: string): number | null {
+  return cosineSim(IDX.creators[creatorId], IDX.brands[brandId]);
+}
+
+export function bestCitedPost(
+  creator: Creator,
+  brand: Brand,
+): { url: string; caption: string; hashtags: string[]; cosine: number } | null {
+  const brandVec = IDX.brands[brand.id];
+  if (!brandVec || !creator.cited_posts?.length) return null;
+  let best: { url: string; caption: string; hashtags: string[]; cosine: number } | null = null;
+  for (const p of creator.cited_posts) {
+    const v = IDX.posts[p.url];
+    const cos = cosineSim(v, brandVec);
+    if (cos == null) continue;
+    if (!best || cos > best.cosine) {
+      best = { url: p.url, caption: p.caption, hashtags: p.hashtags, cosine: cos };
+    }
+  }
+  return best;
+}
 
 export type ImpactBreakdown = {
   followers_factor: number; // 0..1 contribution
@@ -72,12 +127,24 @@ export type CitationMatch = {
 
 export function buildCitations(creator: Creator, brand: Brand): CitationMatch[] {
   if (!creator.cited_posts) return [];
-  return creator.cited_posts.slice(0, 2).map((p) => ({
-    cited_post_url: p.url,
-    caption: p.caption,
-    hashtags: p.hashtags,
-    reason: makeReason(creator, brand, p.caption, p.hashtags),
-  }));
+  // Rank cited posts by cosine vs brand vector when both vectors exist.
+  // Falls back to file order when embeddings are missing for either side.
+  const brandVec = IDX.brands[brand.id];
+  const ranked = [...creator.cited_posts].sort((a, b) => {
+    if (!brandVec) return 0;
+    const ca = cosineSim(IDX.posts[a.url], brandVec) ?? -1;
+    const cb = cosineSim(IDX.posts[b.url], brandVec) ?? -1;
+    return cb - ca;
+  });
+  return ranked.slice(0, 2).map((p) => {
+    const cos = brandVec ? cosineSim(IDX.posts[p.url], brandVec) : null;
+    return {
+      cited_post_url: p.url,
+      caption: p.caption,
+      hashtags: p.hashtags,
+      reason: makeReason(creator, brand, p.caption, p.hashtags, cos),
+    };
+  });
 }
 
 function makeReason(
@@ -85,38 +152,48 @@ function makeReason(
   brand: Brand,
   caption: string,
   hashtags: string[],
+  postCosine: number | null,
 ): string {
   const tagOverlap = hashtags.find((h) =>
     brand.ad_themes.some((t) => t.toLowerCase().includes(h.replace("#", "").toLowerCase())),
   );
+  const cosNote = postCosine != null ? ` Cosine sim ${postCosine.toFixed(2)}.` : "";
   if (creator.niche_tags.includes("ucsb") && brand.target_geo.some((g) => g.includes("UCSB"))) {
     return `UCSB on ${brand.name}'s target list. "${caption}" hits ${
       hashtags.slice(0, 3).join(" ")
-    } - same audience ${brand.name} runs ads to.`;
+    } - same audience ${brand.name} runs ads to.${cosNote}`;
   }
   if (tagOverlap) {
     return `${tagOverlap} overlaps directly with ${brand.name}'s ad themes (${
       brand.ad_themes.slice(0, 3).join(", ")
-    }).`;
+    }).${cosNote}`;
   }
   return `${creator.niche} content overlaps with ${brand.name}'s ${
     brand.ad_themes[0] ?? "brand voice"
-  }; "${caption}" sets the tone.`;
+  }; "${caption}" sets the tone.${cosNote}`;
 }
 
 export function similarity(creator: Creator, brand: Brand): number {
+  // Real semantic cosine from Gemini embeddings (768d) when both sides indexed.
+  const cos = cosineSim(IDX.creators[creator.id], IDX.brands[brand.id]);
+  // Keyword/persona fuzz layer (deterministic, encodes hand-tuned rules).
   const overlap = estimateNicheRelevance(
     creator.niche_tags,
     brand.target_personas,
     brand.ad_themes,
   );
+  // Cosines from gemini-embedding-001 cluster around 0.55-0.78 for mixed-niche
+  // pairs and 0.78+ for tight matches. We rescale [0.55, 0.85] -> [0, 1] so the
+  // demo's headline number stays in the 0.4-0.95 band the UI is calibrated for.
+  const cosScaled = cos != null ? clamp((cos - 0.55) / 0.30, 0, 1) : null;
+  const semantic = cosScaled != null ? cosScaled * 0.55 + overlap * 0.45 : overlap;
   const geoBoost = brand.target_geo.some((t) =>
     creator.geo_match_targets.some((g) => g.toLowerCase().includes(t.toLowerCase())),
   )
     ? 0.07
     : 0;
   const cadenceBoost = Math.min(0.05, creator.posts_per_week * 0.01);
-  return Math.min(0.99, overlap + geoBoost + cadenceBoost);
+  return Math.min(0.99, semantic + geoBoost + cadenceBoost);
 }
 
 function estimateNicheRelevance(

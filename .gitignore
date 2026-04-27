@@ -34,6 +34,7 @@ out/
 # Dev artifacts
 .playwright-mcp/
 mercor-tour/
+rally-shots/
 LIVE_STATUS.md
 .claude/
 .serena/

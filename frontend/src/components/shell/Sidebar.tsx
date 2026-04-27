@@ -43,9 +43,9 @@ export function Sidebar() {
   const items = identity?.persona === "admin" ? ADMIN_ITEMS : CREATOR_ITEMS;
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 z-30 flex w-[80px] flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg)] py-5">
+    <aside className="fixed left-0 top-0 bottom-0 z-30 flex w-[88px] flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg)] py-4">
       {/* Top: Mercor-style M wordmark */}
-      <div className="flex flex-col items-center gap-4">
+      <div className="flex w-full flex-col items-center gap-3">
         <Link
           href={identity?.persona === "admin" ? "/admin" : "/explore"}
           aria-label="Mercor home"
@@ -54,7 +54,7 @@ export function Sidebar() {
           <MercorMark />
         </Link>
 
-        <nav className="mt-2 flex w-full flex-col items-stretch gap-1 px-2">
+        <nav className="mt-1 flex w-full flex-col items-stretch gap-0.5 px-2">
           {items.map((item) => {
             // Use the most-specific match: a sidebar entry is active iff its
             // href is the longest of the entries that prefix the current
@@ -78,7 +78,7 @@ export function Sidebar() {
                 aria-current={active ? "page" : undefined}
                 data-test-id={item.testId}
               >
-                <Icon size={20} strokeWidth={1.6} />
+                <Icon size={22} strokeWidth={1.5} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -87,20 +87,20 @@ export function Sidebar() {
       </div>
 
       {/* Bottom: cookie-consent help + bell + avatar */}
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-3 pb-1">
         <CookieConsentButton />
         <NotificationsDropdown />
         <button
           onClick={switchPersona}
-          className="mt-1 grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-[var(--bg-hover)] text-[12px] font-semibold text-[var(--fg-muted)] ring-1 ring-[var(--border)] hover:ring-2 hover:ring-[var(--accent-soft)]"
+          className="mt-1 grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[var(--bg-hover)] text-[12px] font-semibold text-[var(--fg-muted)] ring-1 ring-[var(--border)] hover:ring-2 hover:ring-[var(--accent-soft)]"
           aria-label="Switch persona"
           title="Switch persona"
           data-test-id="sidebar-persona-switcher"
         >
           {identity?.persona === "admin" ? (
-            <img src="/avatars/aaron-langerman.jpg" alt="Aaron Langerman" className="h-10 w-10 object-cover" />
+            <img src="/avatars/aaron-langerman.jpg" alt="Aaron Langerman" className="h-9 w-9 object-cover" />
           ) : identity ? (
-            <img src="/avatars/loganmann32.jpg" alt="Logan Mann" className="h-10 w-10 object-cover" />
+            <img src="/avatars/loganmann32.jpg" alt="Logan Mann" className="h-9 w-9 object-cover" />
           ) : (
             "?"
           )}

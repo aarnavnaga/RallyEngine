@@ -44,7 +44,6 @@ export default function CampaignsPage() {
     <div>
       <div className="flex items-baseline justify-between">
         <h1 className="h-display text-[28px]">Active campaigns</h1>
-        <span className="text-[12px] text-[var(--fg-muted)]">data refreshes every hour</span>
       </div>
       <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
         {CAMPAIGNS.length} live campaigns across {uniqueBrands} brands. Click in for the perf simulator.

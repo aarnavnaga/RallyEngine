@@ -5,45 +5,61 @@ import type { Creator } from "@/lib/data/creators";
 import type { Brand } from "@/lib/data/brands";
 
 export type ImpactBreakdown = {
-  followers_factor: number; // sqrt(followers) / 100
+  followers_factor: number; // 0..1 contribution
   niche_relevance: number; // 0..1
-  cadence: number; // posts_per_week_last_4w
-  interactions: number; // log10(median_interactions+1)
+  cadence: number; // 0..1 contribution
+  interactions: number; // 0..1 contribution (engagement quality)
   authenticity: number; // 0..1
-  geo_match: number; // 1.0 or 1.2
-  composite: number; // product
-  rounded: number; // 0..100
+  geo_match: number; // 0 or 1 (bonus only when brand provided + geo overlaps)
+  composite: number; // weighted 0..100
+  rounded: number; // 0..100, integer
+};
+
+const W = {
+  followers: 22,
+  engagement: 28,
+  cadence: 12,
+  niche: 26,
+  authenticity: 7,
+  geo: 5,
 };
 
 export function computeImpact(creator: Creator, brand?: Brand): ImpactBreakdown {
-  const followers_factor = Math.sqrt(creator.followers) / 100;
-  const niche_relevance = brand
+  // Normalised 0..1 sub-scores. log scales keep outliers from saturating.
+  // 10M followers ≈ 1.0 ; 10k ≈ 0.57 ; 1k ≈ 0.43
+  const followersNorm = clamp(Math.log10(creator.followers + 1) / 7, 0, 1);
+  // 100k median engagement ≈ 1.0 ; 10k ≈ 0.8 ; 1k ≈ 0.6 ; 100 ≈ 0.4
+  const engagementNorm = clamp(Math.log10(creator.median_interactions + 1) / 5, 0, 1);
+  // 7 posts/wk = 1.0 ; 1 post/wk ≈ 0.14
+  const cadenceNorm = clamp(creator.posts_per_week / 7, 0, 1);
+  // Niche relevance vs the focus brand (defaults to a neutral 0.55 if no brand context)
+  const nicheNorm = brand
     ? estimateNicheRelevance(creator.niche_tags, brand.target_personas, brand.ad_themes)
-    : 0.7;
-  const cadence = creator.posts_per_week;
-  const interactions = Math.log10(creator.median_interactions + 1);
-  const authenticity = creator.authenticity_modifier;
-  const geo_match = brand
+    : 0.55;
+  const authenticityNorm = clamp(creator.authenticity_modifier, 0, 1);
+  const geoNorm = brand
     ? brand.target_geo.some((t) => creator.geo_match_targets.some((g) => g.toLowerCase().includes(t.toLowerCase())))
-      ? 1.2
-      : 1.0
-    : 1.0;
+      ? 1
+      : 0
+    : 0;
+
   const composite =
-    followers_factor *
-    niche_relevance *
-    cadence *
-    interactions *
-    authenticity *
-    geo_match;
+    followersNorm * W.followers +
+    engagementNorm * W.engagement +
+    cadenceNorm * W.cadence +
+    nicheNorm * W.niche +
+    authenticityNorm * W.authenticity +
+    geoNorm * W.geo;
+
   return {
-    followers_factor: round(followers_factor, 2),
-    niche_relevance: round(niche_relevance, 2),
-    cadence,
-    interactions: round(interactions, 2),
-    authenticity,
-    geo_match,
-    composite: round(composite, 2),
-    rounded: Math.min(99, Math.round(composite)),
+    followers_factor: round(followersNorm, 2),
+    niche_relevance: round(nicheNorm, 2),
+    cadence: round(cadenceNorm, 2),
+    interactions: round(engagementNorm, 2),
+    authenticity: round(authenticityNorm, 2),
+    geo_match: geoNorm,
+    composite: round(composite, 1),
+    rounded: clamp(Math.round(composite), 0, 99),
   };
 }
 

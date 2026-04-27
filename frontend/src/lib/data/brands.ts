@@ -4,7 +4,20 @@
 export type Brand = {
   id: string; // slug
   name: string;
-  category: "energy" | "preworkout" | "creatine" | "protein" | "apparel" | "wellness" | "supplement" | "ai-talent";
+  category:
+    | "energy"
+    | "preworkout"
+    | "creatine"
+    | "protein"
+    | "apparel"
+    | "wellness"
+    | "supplement"
+    | "ai-talent"
+    | "developer-tools"
+    | "design"
+    | "productivity"
+    | "ai-product"
+    | "browser";
   website: string;
   hq: string;
   audience: string; // 1-line ICP
@@ -17,6 +30,10 @@ export type Brand = {
   budget_per_post_high: number;
   color: string; // brand-mark accent for logo letter
   logo_url?: string;
+  /** Optional roster of creator handles already under contract. */
+  contracted_creators?: string[];
+  /** Optional 1-2 sentence positioning brief for the brand. */
+  brief?: string;
 };
 
 const B = (b: Brand): Brand => b;
@@ -118,6 +135,7 @@ export const BRANDS: Brand[] = [
     budget_per_post_low: 500,
     budget_per_post_high: 900,
     color: "#0d1f43",
+    logo_url: "/logos/bucked-up.svg",
   }),
 
   // === Pre-workout / supplements ===
@@ -136,6 +154,7 @@ export const BRANDS: Brand[] = [
     budget_per_post_low: 700,
     budget_per_post_high: 1200,
     color: "#0d1f43",
+    logo_url: "/logos/bucked-up.svg",
   }),
   B({
     id: "ryse",
@@ -398,6 +417,198 @@ export const BRANDS: Brand[] = [
     budget_per_post_low: 800,
     budget_per_post_high: 1400,
     color: "#7857ff",
+  }),
+
+  // === Tech / SaaS / AI products (Mercor's actual client surface) ===
+  B({
+    id: "notion",
+    name: "Notion",
+    category: "productivity",
+    website: "https://notion.so",
+    hq: "San Francisco, CA",
+    audience: "Students, indie hackers, knowledge workers running second-brain systems",
+    brand_voice: ["minimal", "personal-system", "calm-productivity", "build-your-own"],
+    active_ads_seen: 21,
+    ad_themes: ["second brain", "student template", "Notion AI workflows", "team wiki"],
+    target_geo: ["Stanford", "Berkeley", "MIT", "UCLA", "NYU", "USA", "Global"],
+    target_personas: ["college-stem", "indie-hacker", "design", "knowledge-worker"],
+    budget_per_post_low: 800,
+    budget_per_post_high: 1500,
+    color: "#000000",
+    logo_url: "https://logo.clearbit.com/notion.so",
+    brief: "Notion partners with students and creators who turn raw chaos into shareable systems — the more authentic the workflow demo, the better.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "linear",
+    name: "Linear",
+    category: "productivity",
+    website: "https://linear.app",
+    hq: "San Francisco, CA",
+    audience: "Engineering leaders + founders running fast product teams",
+    brand_voice: ["calm", "magic-feeling", "speed", "craft-first"],
+    active_ads_seen: 8,
+    ad_themes: ["issue tracking that founders actually use", "keyboard-first", "engineering velocity"],
+    target_geo: ["SF Bay Area", "NYC", "Global SaaS"],
+    target_personas: ["dev", "founder", "engineering-leader"],
+    budget_per_post_low: 900,
+    budget_per_post_high: 1700,
+    color: "#5e6ad2",
+    logo_url: "https://logo.clearbit.com/linear.app",
+    brief: "Linear wants short, opinionated takes from devs and founders showing how their team ships — no rah-rah, no tutorials, just pace and taste.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "vercel",
+    name: "Vercel",
+    category: "developer-tools",
+    website: "https://vercel.com",
+    hq: "San Francisco, CA",
+    audience: "Frontend engineers and AI-app builders shipping on Next.js",
+    brand_voice: ["frontier-tech", "developer-first", "ship-fast", "edge-native"],
+    active_ads_seen: 14,
+    ad_themes: ["Next.js", "AI SDK", "v0 generation", "edge functions", "Turbopack"],
+    target_geo: ["SF Bay Area", "NYC", "Global Dev"],
+    target_personas: ["dev", "frontend", "ai-builder"],
+    budget_per_post_low: 900,
+    budget_per_post_high: 1800,
+    color: "#000000",
+    logo_url: "https://logo.clearbit.com/vercel.com",
+    brief: "Vercel sponsors devs who can ship a working AI app in 60 seconds on camera. Clean code, real deploys, no marketing fluff.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "raycast",
+    name: "Raycast",
+    category: "productivity",
+    website: "https://raycast.com",
+    hq: "London, UK",
+    audience: "Mac power-users, indie devs, productivity nerds with hotkey muscle memory",
+    brand_voice: ["fast", "delightful", "extension-rich", "keyboard-driven"],
+    active_ads_seen: 7,
+    ad_themes: ["Spotlight replacement", "AI commands", "extensions store", "team scripts"],
+    target_geo: ["USA", "Europe", "Global Dev"],
+    target_personas: ["dev", "designer", "power-user"],
+    budget_per_post_low: 700,
+    budget_per_post_high: 1300,
+    color: "#ff6363",
+    logo_url: "https://logo.clearbit.com/raycast.com",
+    brief: "Raycast wants creators showing the 30-second hotkey demo that flips a viewer's brain — short, satisfying, real workflows.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "arc-browser",
+    name: "Arc Browser",
+    category: "browser",
+    website: "https://arc.net",
+    hq: "New York, NY",
+    audience: "Designers, product folks, and students rethinking the browser",
+    brand_voice: ["browser-as-canvas", "design-first", "playful", "internet-as-a-place"],
+    active_ads_seen: 11,
+    ad_themes: ["spaces", "split view", "Arc Search", "tab management as taste"],
+    target_geo: ["USA", "Global Design"],
+    target_personas: ["design", "knowledge-worker", "college-stem"],
+    budget_per_post_low: 700,
+    budget_per_post_high: 1300,
+    color: "#fb4f3a",
+    logo_url: "https://logo.clearbit.com/arc.net",
+    brief: "Arc partners with creators who treat their browser like a workspace and can show off the visual difference in under a minute.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "figma",
+    name: "Figma",
+    category: "design",
+    website: "https://figma.com",
+    hq: "San Francisco, CA",
+    audience: "Product designers, design students, and design-curious PMs",
+    brand_voice: ["collaborative", "playful", "craft", "in-the-file-together"],
+    active_ads_seen: 18,
+    ad_themes: ["Config", "Dev Mode", "FigJam", "AI-assisted design", "auto layout"],
+    target_geo: ["Global Design", "USA", "Europe"],
+    target_personas: ["design", "product-designer", "college-design"],
+    budget_per_post_low: 900,
+    budget_per_post_high: 1700,
+    color: "#0acf83",
+    logo_url: "https://logo.clearbit.com/figma.com",
+    brief: "Figma loves creators who teach a single auto-layout trick or expose a shipped product's actual file — show the work, not the hype.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "cursor",
+    name: "Cursor",
+    category: "developer-tools",
+    website: "https://cursor.com",
+    hq: "San Francisco, CA",
+    audience: "Developers who code with AI agents in the loop",
+    brand_voice: ["AI-native IDE", "fast", "engineer-focused", "agentic"],
+    active_ads_seen: 16,
+    ad_themes: ["agent mode", "Composer", "tab autocomplete", "build a real app on stream"],
+    target_geo: ["SF Bay Area", "NYC", "Global Dev"],
+    target_personas: ["dev", "ai-builder", "indie-hacker"],
+    budget_per_post_low: 900,
+    budget_per_post_high: 1700,
+    color: "#0a0a0a",
+    logo_url: "https://logo.clearbit.com/cursor.com",
+    brief: "Cursor wants devs to live-code a real shipped feature on TikTok or YouTube Shorts — agent + tab demos beat reviews.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "perplexity",
+    name: "Perplexity",
+    category: "ai-product",
+    website: "https://perplexity.ai",
+    hq: "San Francisco, CA",
+    audience: "Researchers, students, and curious adults using AI for grounded search",
+    brand_voice: ["answer-engine", "cited", "research-grade", "curious"],
+    active_ads_seen: 13,
+    ad_themes: ["citations", "Pro Search", "Spaces", "research workflows", "campus partner"],
+    target_geo: ["USA", "Global", "UCSB", "Stanford", "MIT"],
+    target_personas: ["college-stem", "knowledge-worker", "researcher"],
+    budget_per_post_low: 800,
+    budget_per_post_high: 1500,
+    color: "#21808d",
+    logo_url: "https://logo.clearbit.com/perplexity.ai",
+    brief: "Perplexity sponsors creators showing real research moments — homework, due diligence, trip planning — where citations actually matter.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "replit",
+    name: "Replit",
+    category: "developer-tools",
+    website: "https://replit.com",
+    hq: "San Francisco, CA",
+    audience: "Students, hobbyists, and AI-app builders shipping in the browser",
+    brand_voice: ["build-anywhere", "AI-native", "agent-driven", "education-friendly"],
+    active_ads_seen: 12,
+    ad_themes: ["Replit Agent", "ship in the browser", "deploy from a phone", "vibe-code a real app"],
+    target_geo: ["USA", "India", "Global Dev"],
+    target_personas: ["college-stem", "indie-hacker", "ai-builder"],
+    budget_per_post_low: 800,
+    budget_per_post_high: 1400,
+    color: "#f26207",
+    logo_url: "https://logo.clearbit.com/replit.com",
+    brief: "Replit wants no-experience-required builds — open Replit, prompt the agent, deploy a working tool by the end of the video.",
+    contracted_creators: [],
+  }),
+  B({
+    id: "anthropic",
+    name: "Anthropic",
+    category: "ai-product",
+    website: "https://anthropic.com",
+    hq: "San Francisco, CA",
+    audience: "Engineers, researchers, and creators building with Claude",
+    brand_voice: ["safety-focused", "thoughtful", "research-grade", "frontier-AI"],
+    active_ads_seen: 10,
+    ad_themes: ["Claude Code", "Claude Projects", "computer use", "Sonnet for coding", "agentic workflows"],
+    target_geo: ["USA", "Global Dev", "Stanford", "MIT", "CMU"],
+    target_personas: ["dev", "ai-builder", "researcher", "knowledge-worker"],
+    budget_per_post_low: 1000,
+    budget_per_post_high: 2000,
+    color: "#d97757",
+    logo_url: "https://logo.clearbit.com/anthropic.com",
+    brief: "Anthropic partners with technical creators who can show Claude doing real work — Claude Code in a real repo, Sonnet inside a shipped product.",
+    contracted_creators: [],
   }),
 ];
 

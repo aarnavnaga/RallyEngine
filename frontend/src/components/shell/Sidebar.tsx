@@ -8,15 +8,14 @@ import {
   UserPlus,
   CircleDollarSign,
   User as UserIcon,
-  HelpCircle,
   LayoutDashboard,
   TableProperties,
   Inbox,
-  GitMerge,
   TrendingUp,
   Send,
 } from "lucide-react";
 import { NotificationsDropdown } from "@/components/shell/NotificationsDropdown";
+import { CookieConsentButton } from "@/components/shell/CookieConsent";
 import { useUser } from "@/lib/state/user";
 import clsx from "clsx";
 
@@ -33,8 +32,7 @@ const CREATOR_ITEMS: Item[] = [
 
 const ADMIN_ITEMS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/creators", label: "Creators", icon: TableProperties },
-  { href: "/admin/match", label: "Match", icon: GitMerge },
+  { href: "/admin/creators", label: "Creators & Match", icon: TableProperties },
   { href: "/admin/outreach", label: "Outreach", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: TrendingUp },
 ];
@@ -88,14 +86,9 @@ export function Sidebar() {
         </nav>
       </div>
 
-      {/* Bottom: help + bell + avatar */}
+      {/* Bottom: cookie-consent help + bell + avatar */}
       <div className="flex flex-col items-center gap-2">
-        <button
-          className="grid h-10 w-10 place-items-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg)]"
-          aria-label="Help"
-        >
-          <HelpCircle size={20} strokeWidth={1.7} />
-        </button>
+        <CookieConsentButton />
         <NotificationsDropdown />
         <button
           onClick={switchPersona}

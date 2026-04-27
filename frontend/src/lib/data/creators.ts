@@ -27,7 +27,19 @@ export type Creator = {
   applied_to?: string[]; // brand slugs
   onboarded_at?: string;
   rally_referral_source?: string; // creator id who referred
-  cited_posts?: { url: string; caption: string; views: number; likes: number; comments: number; saves?: number; hashtags: string[] }[];
+  cited_posts?: {
+    url: string;
+    caption: string;
+    views: number;
+    likes: number;
+    comments: number;
+    saves?: number;
+    hashtags: string[];
+    // Brand IDs where this post should be pinned to the top of buildCitations
+    // output regardless of cosine ranking. Hand-tuned demo anchor; used to keep
+    // the Logan x Celsius "Average quant" wow moment reproducible on stage.
+    pin_for?: string[];
+  }[];
 };
 
 // Logan Mann - the headliner, real account
@@ -61,6 +73,11 @@ export const LOGAN: Creator = {
       comments: 6,
       saves: 16,
       hashtags: ["#janestreet", "#math", "#quant", "#ucsb", "#gonzalo"],
+      // Canonical wow-moment cite for the Celsius pitch: STEM x UCSB x late-
+      // night-grind is Celsius's exact ICP. Pinning here keeps the rationale
+      // paragraph anchored on this URL even when raw cosine prefers other
+      // gym-themed posts.
+      pin_for: ["celsius"],
     },
     {
       url: "https://www.tiktok.com/@loganmann32/video/7618484810977168654",

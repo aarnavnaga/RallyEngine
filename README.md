@@ -32,6 +32,91 @@ Both flows share the same Mercor design tokens, the same Explore grid, the same 
 
 ---
 
+## Features
+
+### Landing & navigation
+- **`/`** — Mercor.com 1:1 mirror with `Creators & Influencers` role card highlighted
+- Persona switcher in the top-right `Log in` dropdown — toggles between Logan (creator) and Aaron (Mercor team)
+- Sidebar persona-switch avatar (bottom-left) with one-click toggle
+- `RESET ALL FOR DEMO` floating pill — wipes every `mercor.*` localStorage key + reloads
+- Cookie consent banner (privacy-preserving default), Mercor footer with X / YouTube / LinkedIn / Instagram social links
+- 4-column footer wired across every signed-in route via `AppShell`
+- Notifications dropdown in sidebar bell slot
+
+### Creator flow (Logan Mann · `@loganmann32` · 22.7K followers)
+- **`/explore`** — 5-column brand campaign grid with rate badges, hires-this-month avatar stacks, total paid this month
+- `Domain` filter with `Creators & Influencers` highlighted as `NEW`
+- `JobDetailPanel` right-rail with brief, application checklist, sticky `Continue Application` CTA
+- **`/jobs/apply/[id]`** — 4-step Mercor stepper: Resume → Connect TikTok+IG → Creator Interview → Work Authorization
+- Mocked TikTok/IG OAuth that returns Logan's real follower count + last 6 video thumbnails
+- **Video interview step** with live camera + mic preview, consent gate, Web Speech API STT/TTS, Gemini Vision frame scoring (confidence + cheating detection), dynamic question adaptation
+- **`/jobs/apply/[id]/submitted`** — confetti page + "Similar Opportunities" carousel
+- **`/home`** — creator dashboard with `Contracts`, `Offers`, `Applications`, `Assessments`, `Saved` tabs + Creators & Influencers assessment category
+- **`/contracts/[id]`** — Stripe-style contract detail (real Mercor SWE onboarding doc + Celsius creator contract)
+- **`/deliverables`** — submit deliverables for active contracts
+- **`/deliverables/[contractId]`** — link TikTok URL → `SIMULATE TIME` fast-forwards views/comments → bonus tier earnings
+- **`/referrals`** — TikTok+IG friends table (412 friends scraped from Logan's followings) with `Intro` + `Vouch` buttons; 6-bucket funnel KPI row; 3-step Vouch modal with auto-fill toggle
+- **`/earnings`** — Mercor 1:1 stacked bar chart (Paid/Pending), Stripe Connected pill, Mercor Intros promo card, Contracts section, full Payments table
+- **`/profile`** — 6 tabs (Resume / Location / Availability / Work Preferences / Communications / Account) wired to `?tab=` URL param; real Logan resume + Domain Interests pills
+
+### Admin flow (Aaron Langerman · Mercor Strategic Ops)
+- **`/admin`** — KPIs (active campaigns, onboarded creators, pending review, GMV last 7d) + Pending / Onboarded / Applied / Auto-drafted / All applicant tabs
+- **`/admin/creators`** — pipeline data table sorted by Impact Score
+- **`/admin/match`** — manual matching workbench. Pick a brand → ranked creators with similarity, impact, suggested pay
+- Expand any row → cosine-sim breakdown citing **specific TikTok URLs by URL** (e.g. `tiktok.com/@loganmann32/video/7608429326211501326`) in the rationale paragraph
+- `?focus=loganmann32` URL param pins Logan to the top so the cite-by-URL "wow moment" always works
+- **`/admin/outreach`** — AI-drafted message queue. Creator + Brand toggle, status tabs (Pending / Sent / Replied / Negotiating). Approve / Edit / Skip per row. Replies arrive simulated 4–8s after send. Persona-aware `chat-reply` route powered by Gemini 2.5 Flash Lite
+- **`/admin/campaigns/[id]`** — live perf simulator. Views tick every 8s. Avg comment relevance card. Pricing breakdown table. Sales attribution rows
+- **Interview notes card** — propagates VideoInterview transcript + confidence/cheating scores into Aaron's dashboard per creator
+
+### AI / RAG layer
+- **`/api/chat-suggestions`** — Gemini-backed quick-reply chip generator for Aaron's outreach approval queue
+- **`/api/chat-reply`** — Gemini persona-aware counterparty reply simulator (creator vs brand, base-rate aware, in-character)
+- **`/api/interview/turn`** — Gemini interviewer that adapts questions to interviewee responses
+- **`/api/interview/observe`** — Gemini Vision frame scoring for confidence + cheating detection
+- **`/api/interview/finalize`** — transcript + score consolidation, propagated to admin dashboard
+- Per-IP token-bucket rate limiting + same-origin gating in Next.js `middleware.ts`
+- LLM streaming for faster perceived latency
+- Structured TikTok scraping with real engagement metrics (followers, ER, FYP-dominance correction)
+- Impact-Score breakdown shown as tooltip on every creator card; click expands the formula
+- Relevant-Eyes pricing model (cosine sim of fan comments to brand voice → payout fairness)
+
+### Real data + assets
+- 36 real scraped TikTok profile photos via curl + `avatarLarger` field (33/37 succeeded; 4 fall back to letter avatars)
+- Real LinkedIn pfp for Aaron (`public/aaron.jpg`)
+- 15-brand fitness/energy lane (Celsius, Alani Nu, Bucked Up, Ghost, Bloom, Ryse, Gorgie, C4, ON, Gnarly, Magic Mind, Liquid Death, Olipop, Create Wellness, Bucked Up Energy)
+- Brand logos via Clearbit API (`logo.clearbit.com/<domain>`) → Google favicon fallback → colored letter avatar
+- Logan's real resume (UCSB, gym/fitness niche)
+- 412 TikTok+IG friends scraped from Logan's followings (30+ deeper-scraped for matching)
+- 4 cited TikTok video URLs with full payload (captions, audio, location, top 30 comments)
+
+### Demo video
+- **`/aaron-demo.mp4`** — 43.4s production-quality demo video at 1920×1080 30fps, hosted at the Vercel root. No Ken Burns, no intro/outro frames, native framerate
+- Cursor halo + click ripple effects baked into the recording (Playwright `addInitScript`)
+- 8 caption overlays with fade-in/out (PIL-rendered transparent PNGs)
+- xfade scene transitions (350ms)
+- Live at https://musing-maxwell-84ed29.vercel.app/aaron-demo.mp4
+
+### Branding & design system
+- Mercor purple `#7857ff` accent throughout, design tokens in `globals.css`
+- Inter font via `next/font/google` wired to `--font-sans`
+- Mercor M wordmark, favicon, footer, logo
+- Zero "Rally" branding in user-facing surfaces (legacy strings auto-flagged)
+- Zero em/en dashes anywhere in the codebase (rule + test)
+- Pipe `|` separator in title bars (never hyphen)
+- All persistence under `mercor.*` localStorage namespace
+- `data-test-id` attributes on every interactive surface for Playwright e2e
+
+### Operational
+- `auto-hotfix.sh` 24/7 watcher — recovers crashed dev server in <60s via SIGTERM-grace + .next wipe + restart
+- Background visual-diff loop (Playwright + 4 acceptance gates: TikTok URL, Creators & Influencers, CUA Environments, Brainstorming Session)
+- Hourly auto-snapshot commits + push to `claude/musing-maxwell-84ed29`
+- Periodic merge-to-main routine (gated on green CI + smoke 200s)
+- Vercel prod deploy at https://musing-maxwell-84ed29.vercel.app/
+- `LIVE_STATUS.md` self-maintained with last visual-diff run, last auto-snapshot, top fix
+
+---
+
 ## Stack
 
 - **Frontend:** Next.js 15 (App Router) + React 19 + TypeScript + Tailwind v4

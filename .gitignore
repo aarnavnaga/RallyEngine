@@ -36,6 +36,7 @@ out/
 mercor-tour/
 LIVE_STATUS.md
 .claude/
+.serena/
 
 # Frontend env
 frontend/.env*.local

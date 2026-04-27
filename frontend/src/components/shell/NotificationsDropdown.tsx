@@ -32,11 +32,15 @@ export function NotificationsDropdown() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-1/2 mb-2 w-72 -translate-x-1/2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-lg">
+        <div
+          role="dialog"
+          aria-label="Notifications"
+          className="absolute bottom-0 left-full z-50 ml-3 w-80 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-modal)]"
+        >
           <div className="border-b border-[var(--border)] px-4 py-3">
             <p className="text-[13px] font-semibold text-[var(--fg)]">Notifications</p>
           </div>
-          <ul className="divide-y divide-[var(--border)]">
+          <ul className="max-h-[60vh] divide-y divide-[var(--border)] overflow-y-auto">
             {LOGAN_PROFILE.notifications.map((n) => (
               <li key={n.id} className="px-4 py-3 hover:bg-[var(--bg-hover)]">
                 <p className="text-[13px] font-semibold text-[var(--fg)]">{n.title}</p>

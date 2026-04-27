@@ -73,15 +73,17 @@ export async function POST(req: NextRequest) {
   };
 
   try {
-    const resp = await fetch(`${ENDPOINT}?key=${apiKey}`, {
+    const resp = await fetch(ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(15_000),
     });
     if (!resp.ok) {
-      const errText = await resp.text();
-      return NextResponse.json({ error: `gemini ${resp.status}`, detail: errText.slice(0, 500) }, { status: 502 });
+      return NextResponse.json({ error: "upstream error" }, { status: 502 });
     }
     const data: { candidates?: GeminiCandidate[] } = await resp.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
@@ -89,8 +91,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "empty response" }, { status: 502 });
     }
     return NextResponse.json({ text });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "unknown";
-    return NextResponse.json({ error: "fetch failed", detail: message }, { status: 502 });
+  } catch {
+    return NextResponse.json({ error: "fetch failed" }, { status: 502 });
   }
 }

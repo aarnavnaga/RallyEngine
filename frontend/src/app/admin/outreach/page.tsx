@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronRight, Edit2, Send, Sparkles, X } from "lucide-react";
+import { Check, ChevronRight, Send, Sparkles } from "lucide-react";
 import { CREATORS, CREATORS_BY_ID, type Creator } from "@/lib/data/creators";
 import { BRANDS_BY_ID, type Brand } from "@/lib/data/brands";
 import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
@@ -53,7 +53,6 @@ type Deal = {
   campaignId: string;
   stage: DealStage;
   similarity: number;
-  autoMode: boolean;
   creatorChat: ChatThread;
   brandChat: ChatThread;
   contract: ContractTerms | null;
@@ -159,7 +158,6 @@ function buildDefaultDeals(): Deal[] {
       campaignId: "celsius-college-q2",
       stage: "negotiating",
       similarity: similarity(creator, brand),
-      autoMode: false,
       creatorChat: chatWith(
         [
           { id: "c-l-1", from: "aaron", text: buildCreatorOutreach(creator, brand, campaign.title, pay.total_low, pay.total_high), timestamp: now - 600_000 },
@@ -199,7 +197,6 @@ function buildDefaultDeals(): Deal[] {
       campaignId: cfg.campaign,
       stage: "negotiating",
       similarity: similarity(creator, brand),
-      autoMode: false,
       creatorChat: chatWith(
         [
           { id: `c-${cfg.creator}-1`, from: "aaron", text: buildCreatorOutreach(creator, brand, campaign?.title ?? `${brand.name} Campaign`, pay.total_low, pay.total_high), timestamp: now - 720_000 },
@@ -248,7 +245,6 @@ function buildDefaultDeals(): Deal[] {
       campaignId: cfg.campaign,
       stage: "outreach",
       similarity: similarity(creator, brand),
-      autoMode: false,
       creatorChat: emptyChat(buildCreatorOutreach(creator, brand, campaign?.title ?? `${brand.name} Campaign`, pay.total_low, pay.total_high)),
       brandChat: emptyChat(buildBrandOutreach(brand, creator, campaign?.title ?? `${brand.name} Campaign`, pay.total_low, pay.total_high)),
       contract: null,
@@ -273,7 +269,6 @@ function buildDefaultDeals(): Deal[] {
         campaignId: "bucked-up-frat-26",
         stage: "signed",
         similarity: similarity(creator, brand),
-        autoMode: false,
         creatorChat: chatWith([
           { id: "c-jjw-1", from: "aaron", text: buildCreatorOutreach(creator, brand, campaign?.title ?? "", pay.total_low, pay.total_high), timestamp: now - 1_000_000 },
           { id: "c-jjw-2", from: "creator", text: simulatedCreatorReply(brand, creator), timestamp: now - 800_000 },
@@ -297,15 +292,37 @@ function buildDefaultDeals(): Deal[] {
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "mercor.outreach.v2";
+const STORAGE_KEY_AUTO_MEDIATE = "mercor.outreach.autoMediate.v1";
+
+type AutoMediateMap = Record<string, boolean>;
+
+function isPlainRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+
+function isDeal(x: unknown): x is Deal {
+  if (!isPlainRecord(x)) return false;
+  return (
+    typeof x.id === "string" &&
+    typeof x.creatorId === "string" &&
+    typeof x.brandId === "string" &&
+    typeof x.stage === "string" &&
+    isPlainRecord(x.creatorChat) &&
+    Array.isArray((x.creatorChat as Record<string, unknown>).messages) &&
+    isPlainRecord(x.brandChat) &&
+    Array.isArray((x.brandChat as Record<string, unknown>).messages)
+  );
+}
 
 function loadDeals(): Deal[] {
   if (typeof window === "undefined") return buildDefaultDeals();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return buildDefaultDeals();
-    const parsed = JSON.parse(raw) as Deal[];
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return buildDefaultDeals();
-    return parsed;
+    const valid = parsed.filter(isDeal);
+    return valid.length > 0 ? valid : buildDefaultDeals();
   } catch {
     return buildDefaultDeals();
   }
@@ -315,6 +332,32 @@ function saveDeals(deals: Deal[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(deals));
+  } catch {
+    /* quota / private mode — ignore */
+  }
+}
+
+function loadAutoMediate(): AutoMediateMap {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY_AUTO_MEDIATE);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const result: AutoMediateMap = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === "boolean") result[k] = v;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function saveAutoMediate(map: AutoMediateMap): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY_AUTO_MEDIATE, JSON.stringify(map));
   } catch {
     /* quota / private mode — ignore */
   }
@@ -360,17 +403,35 @@ function OutreachInner() {
   const brandParam = params.get("brand");
 
   const [deals, setDeals] = useState<Deal[]>(() => buildDefaultDeals());
+  const [autoMediate, setAutoMediate] = useState<AutoMediateMap>({});
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage on mount, then persist on every change.
   useEffect(() => {
     setDeals(loadDeals());
+    setAutoMediate(loadAutoMediate());
     setHydrated(true);
   }, []);
 
   useEffect(() => {
     if (hydrated) saveDeals(deals);
   }, [deals, hydrated]);
+
+  useEffect(() => {
+    if (hydrated) saveAutoMediate(autoMediate);
+  }, [autoMediate, hydrated]);
+
+  const toggleAutoMediate = useCallback((dealId: string) => {
+    setAutoMediate((current) => {
+      const next = { ...current };
+      if (current[dealId]) {
+        delete next[dealId];
+      } else {
+        next[dealId] = true;
+      }
+      return next;
+    });
+  }, []);
 
   // Inject picks from /admin/match if present.
   useEffect(() => {
@@ -395,7 +456,6 @@ function OutreachInner() {
           campaignId,
           stage: "outreach",
           similarity: similarity(creator, brand),
-          autoMode: false,
           creatorChat: emptyChat(buildCreatorOutreach(creator, brand, campaign?.title ?? `${brand.name} Campaign`, pay.total_low, pay.total_high)),
           brandChat: emptyChat(buildBrandOutreach(brand, creator, campaign?.title ?? `${brand.name} Campaign`, pay.total_low, pay.total_high)),
           contract: null,
@@ -492,7 +552,9 @@ function OutreachInner() {
                   key={deal.id}
                   deal={deal}
                   selected={deal.id === selectedId}
+                  autoMediate={autoMediate[deal.id] === true}
                   onSelect={() => setSelectedId(deal.id)}
+                  onToggleAutoMediate={() => toggleAutoMediate(deal.id)}
                 />
               ))}
             </ul>
@@ -502,7 +564,11 @@ function OutreachInner() {
         {/* CENTER: deal detail */}
         <div>
           {selected ? (
-            <DealDetail deal={selected} onUpdate={(p) => updateDeal(selected.id, p)} />
+            <DealDetail
+              deal={selected}
+              autoMediate={autoMediate[selected.id] === true}
+              onUpdate={(p) => updateDeal(selected.id, p)}
+            />
           ) : (
             <div className="flex h-48 items-center justify-center rounded-[14px] border border-[var(--border)] text-[13px] text-[var(--fg-muted)]">
               Select a deal to review
@@ -530,7 +596,15 @@ function stageToTab(stage: DealStage): TabName {
 // Deal row (left list)
 // ---------------------------------------------------------------------------
 
-function DealRow({ deal, selected, onSelect }: { deal: Deal; selected: boolean; onSelect: () => void }) {
+interface DealRowProps {
+  deal: Deal;
+  selected: boolean;
+  autoMediate: boolean;
+  onSelect: () => void;
+  onToggleAutoMediate: () => void;
+}
+
+function DealRow({ deal, selected, autoMediate, onSelect, onToggleAutoMediate }: DealRowProps) {
   const creator = CREATORS_BY_ID[deal.creatorId];
   const brand = BRANDS_BY_ID[deal.brandId];
   if (!creator || !brand) return null;
@@ -562,9 +636,53 @@ function DealRow({ deal, selected, onSelect }: { deal: Deal; selected: boolean; 
         </div>
         <div className="mt-0.5 text-[11px] text-[var(--fg-muted)] truncate">{(deal.similarity * 100).toFixed(0)}% match · {fmtFollowers(creator.followers)}</div>
         <p className="mt-1 line-clamp-1 text-[11.5px] text-[var(--fg-muted)]">{preview}</p>
+        <div className="mt-2 flex items-center justify-end">
+          <AutoMediateSwitch active={autoMediate} onToggle={onToggleAutoMediate} />
+        </div>
       </div>
       <ChevronRight size={14} className={selected ? "text-[var(--accent)]" : "text-[var(--fg-subtle)]"} />
     </li>
+  );
+}
+
+interface AutoMediateSwitchProps {
+  active: boolean;
+  onToggle: () => void;
+}
+
+function AutoMediateSwitch({ active, onToggle }: AutoMediateSwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={active}
+      aria-label="Auto-mediate this deal"
+      data-test-id="auto-mediate-toggle"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={[
+        "inline-flex items-center gap-1.5 select-none",
+        active ? "text-[var(--accent)]" : "text-[var(--fg-muted)] hover:text-[var(--fg)]",
+      ].join(" ")}
+      title={active ? "Auto-mediate on — Claude will negotiate this deal" : "Auto-mediate off"}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-[0.06em]">Auto</span>
+      <span
+        className={[
+          "relative inline-flex h-3.5 w-7 items-center rounded-full transition-colors",
+          active ? "bg-[var(--accent)]" : "bg-[var(--bg-hover)]",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform",
+            active ? "translate-x-3.5" : "translate-x-0.5",
+          ].join(" ")}
+        />
+      </span>
+    </button>
   );
 }
 
@@ -581,7 +699,13 @@ function StagePill({ stage }: { stage: DealStage }) {
 // Deal detail (center pane) - two chats: Aaron→Creator, Aaron→Brand
 // ---------------------------------------------------------------------------
 
-function DealDetail({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<Deal> | ((d: Deal) => Partial<Deal>)) => void }) {
+interface DealDetailProps {
+  deal: Deal;
+  autoMediate: boolean;
+  onUpdate: (p: Partial<Deal> | ((d: Deal) => Partial<Deal>)) => void;
+}
+
+function DealDetail({ deal, autoMediate, onUpdate }: DealDetailProps) {
   const creator = CREATORS_BY_ID[deal.creatorId];
   const brand = BRANDS_BY_ID[deal.brandId];
   const campaign = deal.campaignId ? CAMPAIGNS_BY_ID[deal.campaignId] : null;
@@ -589,21 +713,35 @@ function DealDetail({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<Deal
   const [side, setSide] = useState<ChatSide>("creator");
   const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Track message counts so the auto-mediate effect re-runs only when the
+  // conversation actually advances — not on every keystroke into the draft.
+  const creatorMessageCount = deal.creatorChat.messages.length;
+  const brandMessageCount = deal.brandChat.messages.length;
+
   // Auto-mediate: every ~6s, advance whichever side is silent toward an offer.
+  // We deliberately depend only on the primitive identity slice (deal id,
+  // stage, both message counts, plus creator/brand ids). `deal` itself is a
+  // fresh object on every render (typing into the draft mutates the deals
+  // array up the tree), so depending on the whole object would clear the
+  // timer on every keystroke and the 5500ms tick would never fire. Inside
+  // the timer callback we use the `onUpdate((current) => ...)` updater to
+  // read the latest deal state at fire time.
   useEffect(() => {
-    if (!deal.autoMode) {
+    if (!autoMediate) {
       if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
       return;
     }
     if (deal.stage === "signed") return;
     if (!creator || !brand) return;
+    const campaignTitle = campaign?.title ?? `${brand.name} Campaign`;
     autoTimerRef.current = setTimeout(() => {
-      onUpdate((current) => autoMediateStep(current, creator, brand, campaign?.title ?? `${brand.name} Campaign`));
+      onUpdate((current) => autoMediateStep(current, creator, brand, campaignTitle));
     }, 5500);
     return () => {
       if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
     };
-  }, [deal, creator, brand, campaign, onUpdate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMediate, deal.id, deal.stage, creator?.id, brand?.id, creatorMessageCount, brandMessageCount]);
 
   if (!creator || !brand) return null;
 
@@ -621,27 +759,21 @@ function DealDetail({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<Deal
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-semibold">{creator.name} × {brand.name}</span>
               <StagePill stage={deal.stage} />
+              {autoMediate ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent)]"
+                  title="Auto-mediate is on for this deal — toggle in the deal list"
+                >
+                  <Sparkles size={10} />
+                  Auto-mediating
+                  <ClaudeMark model="haiku" size="xs" />
+                </span>
+              ) : null}
             </div>
             <div className="mt-0.5 text-[12px] text-[var(--fg-muted)] truncate">
               {campaign?.title ?? `${brand.name} Campaign`} · {(deal.similarity * 100).toFixed(0)}% brand-voice fit
             </div>
           </div>
-          <button
-            type="button"
-            data-test-id="auto-mediate-toggle"
-            onClick={() => onUpdate({ autoMode: !deal.autoMode })}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
-              deal.autoMode
-                ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                : "border-[var(--border)] text-[var(--fg-muted)] hover:text-[var(--fg)]",
-            ].join(" ")}
-            title="Let Claude auto-negotiate between both sides"
-          >
-            <Sparkles size={12} />
-            {deal.autoMode ? "Auto-mediating" : "Auto-mediate"}
-            <ClaudeMark model="haiku" size="xs" />
-          </button>
         </div>
 
         <StageBreadcrumb stage={deal.stage} />
@@ -758,8 +890,112 @@ function ChatPanel({
 
   const counterpartyName = side === "creator" ? creator.name : brand.name;
 
-  // Build the 3 suggested quick-reply chips. Tailored to where the deal is.
-  const suggestions = useMemo(() => buildSuggestions(deal, side, creator, brand), [deal, side, creator, brand]);
+  // Build the 3 suggested quick-reply chips. We always render *some*
+  // suggestions: while the LLM-backed `/api/chat-suggestions` request is in
+  // flight or fails, we show the local static fallback so the UI never goes
+  // empty. Successful fetches are cached per (deal, side, stage, message
+  // count) so flipping back to a thread we already loaded is instant.
+  const fallbackSuggestions = useMemo<Suggestion[]>(
+    () => staticSuggestions(deal, side, creator, brand),
+    [deal, side, creator, brand],
+  );
+  const messageCount = chat.messages.length;
+  const suggestionCacheKey = `${deal.id}:${side}:${deal.stage}:${messageCount}`;
+  const [suggestionCache, setSuggestionCache] = useState<Record<string, Suggestion[]>>({});
+  // Mirror the cache in a ref so the fetch effect can read the latest cache
+  // state without re-running every time we write to it.
+  const suggestionCacheRef = useRef(suggestionCache);
+  useEffect(() => {
+    suggestionCacheRef.current = suggestionCache;
+  }, [suggestionCache]);
+  const cachedSuggestions = suggestionCache[suggestionCacheKey];
+  const suggestions: Suggestion[] = cachedSuggestions ?? fallbackSuggestions;
+
+  // Mirror the moving parts that build the fetch payload behind refs so the
+  // suggestions effect can read the latest values without depending on the
+  // unstable `creator` / `brand` / `deal` / `chat.messages` references —
+  // each of those re-renders on every keystroke into the draft, which would
+  // abort and re-issue the /api/chat-suggestions request per character. The
+  // stable `suggestionCacheKey` already encodes the (deal, side, stage,
+  // messageCount) identity that actually changes the suggestions.
+  type SuggestionPayloadInputs = {
+    creator: Creator;
+    brand: Brand;
+    deal: Deal;
+    chatMessages: Message[];
+    side: ChatSide;
+  };
+  const suggestionInputsRef = useRef<SuggestionPayloadInputs>({
+    creator,
+    brand,
+    deal,
+    chatMessages: chat.messages,
+    side,
+  });
+  useEffect(() => {
+    suggestionInputsRef.current = {
+      creator,
+      brand,
+      deal,
+      chatMessages: chat.messages,
+      side,
+    };
+  }, [creator, brand, deal, chat.messages, side]);
+
+  useEffect(() => {
+    // Skip the LLM call when there's nothing to negotiate against yet —
+    // the static fallback is fine for the empty-thread case.
+    if (messageCount === 0) return;
+    if (suggestionCacheRef.current[suggestionCacheKey]) return;
+
+    const {
+      creator: refCreator,
+      brand: refBrand,
+      deal: refDeal,
+      chatMessages: refMessages,
+      side: refSide,
+    } = suggestionInputsRef.current;
+
+    const controller = new AbortController();
+    const impact = computeImpact(refCreator, refBrand);
+    const pay = computeSuggestedPay(refCreator, refBrand, impact);
+    const baseRateLow = refDeal.contract?.base_pay ?? pay.total_low;
+    const baseRateHigh = (refDeal.contract?.base_pay ?? pay.total_high) + 200;
+    const campaignTitle = CAMPAIGNS_BY_ID[refDeal.campaignId]?.title ?? `${refBrand.name} campaign`;
+    const history = refMessages.map((m) => ({ from: m.from, text: m.text }));
+
+    const payload = {
+      side: refSide,
+      counterpartyName: refSide === "creator" ? refCreator.name : refBrand.name,
+      brandName: refBrand.name,
+      campaignTitle,
+      baseRateLow,
+      baseRateHigh,
+      stage: refDeal.stage,
+      history,
+    };
+
+    void (async () => {
+      try {
+        const resp = await fetch("/api/chat-suggestions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        if (!resp.ok) return; // silent fallback
+        const data: { suggestions?: Suggestion[] } = await resp.json();
+        const next = Array.isArray(data.suggestions) ? data.suggestions : null;
+        if (!next || next.length === 0) return; // silent fallback
+        if (controller.signal.aborted) return;
+        setSuggestionCache((prev) => ({ ...prev, [suggestionCacheKey]: next }));
+      } catch {
+        // Silent fallback — UI keeps showing static suggestions.
+      }
+    })();
+
+    return () => controller.abort();
+  }, [suggestionCacheKey, messageCount]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -930,7 +1166,9 @@ function MessageBubble({ message, counterpartyName }: { message: Message; counte
 // Quick-reply suggestion builder (3 chips above the input)
 // ---------------------------------------------------------------------------
 
-function buildSuggestions(deal: Deal, side: ChatSide, creator: Creator, brand: Brand): { label: string; text: string }[] {
+type Suggestion = { label: string; text: string };
+
+function staticSuggestions(deal: Deal, side: ChatSide, creator: Creator, brand: Brand): Suggestion[] {
   const partyName = side === "creator" ? creator.name.split(" ")[0] : brand.name;
   const otherSide = side === "creator" ? brand.name : creator.name.split(" ")[0];
   const baseRate = deal.contract?.base_pay ?? Math.round((computeSuggestedPay(creator, brand, computeImpact(creator, brand)).total_low + computeSuggestedPay(creator, brand, computeImpact(creator, brand)).total_high) / 2);

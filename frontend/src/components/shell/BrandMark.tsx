@@ -31,7 +31,17 @@ export function BrandMark({ brand, size = 28 }: { brand: Brand; size?: number })
     (isAbsoluteUrl(brand.logo_url) || isLocalPath(brand.logo_url));
 
   const initialLevel: FallbackLevel = hasExplicitLogo ? "primary" : "clearbit";
+  // Reset fallback level when the brand changes — without this, the same
+  // BrandMark instance reused for a different brand keeps the old level and
+  // a missing logo only resolves after onError cycles through the chain.
+  // (Symptom: brand A's logo was cached at "primary", then re-rendered for
+  // brand B which has no logo_url, so src=undefined until onError fires.)
   const [level, setLevel] = useState<FallbackLevel>(initialLevel);
+  const [trackedBrandId, setTrackedBrandId] = useState(brand.id);
+  if (trackedBrandId !== brand.id) {
+    setTrackedBrandId(brand.id);
+    setLevel(initialLevel);
+  }
 
   if (level === "letter") {
     const initial = brand.name.replace(/[^A-Za-z]/g, "").slice(0, 1).toUpperCase();
@@ -86,7 +96,8 @@ export function BrandMark({ brand, size = 28 }: { brand: Brand; size?: number })
       <img
         src={src}
         alt={brand.name}
-        loading="lazy"
+        loading="eager"
+        decoding="async"
         onError={handleError}
         style={{
           width: size - 4,

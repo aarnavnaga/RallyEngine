@@ -80,8 +80,9 @@ export function Sidebar() {
               >
                 <Icon
                   size={22}
-                  strokeWidth={active ? 1.4 : 1.5}
+                  strokeWidth={active ? 1.6 : 1.5}
                   fill={active ? "currentColor" : "none"}
+                  stroke={active ? "var(--bg)" : "currentColor"}
                 />
                 <span>{item.label}</span>
               </Link>

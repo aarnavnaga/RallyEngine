@@ -160,7 +160,8 @@ const DATA_ASSESSMENTS: Assessment[] = [
 ];
 
 const CREATOR_ASSESSMENTS: Assessment[] = [
-  { slug: "creator-voice-interview-core", name: "Creator Voice Interview CORE", duration: "12 minutes", format: "interview", roles_count: 3, max_pay: "$90/hourly" },
+  { slug: "influencer-video-assessment-core", name: "Influencer Video Assessment CORE", duration: "20 minutes", format: "interview", roles_count: 4, max_pay: "$120/hourly" },
+  { slug: "creator-voice-interview-core", name: "Expert Voice Interview CORE", duration: "12 minutes", format: "interview", roles_count: 3, max_pay: "$90/hourly" },
   { slug: "brand-fit-reasoning-core", name: "Brand Fit Reasoning CORE", duration: "8 minutes", format: "interview" },
   { slug: "audience-analytics-showcase-core", name: "Audience Analytics Showcase CORE", duration: "15 questions", format: "form" },
 ];
@@ -436,17 +437,17 @@ function AssessmentsTab() {
   return (
     <div className="space-y-6">
       {/* Hero — mirrors work.mercor.com/home?tab=assessments */}
-      <div className="relative overflow-visible rounded-[16px] bg-gradient-to-r from-[#5b3df0] via-[#7857ff] to-[#f4a8b6] px-8 pt-10 pb-12 lg:pb-10">
+      <div className="relative overflow-visible rounded-[20px] bg-gradient-to-r from-[#5b3df0] via-[#7857ff] to-[#f4a8b6] px-10 pt-14 pb-20 lg:pb-14">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="max-w-[480px]">
-            <h2 className="text-[32px] font-bold leading-tight tracking-tight text-white">
+          <div className="max-w-[560px]">
+            <h2 className="text-[44px] font-bold leading-[1.05] tracking-tight text-white">
               Assessments
             </h2>
-            <p className="mt-3 text-[13px] leading-relaxed text-white/85">
+            <p className="mt-4 text-[15px] leading-relaxed text-white/85">
               Assessments are the quickest way to unlock more opportunities. Many roles share the same requirements, so once you&apos;ve passed an assessment, you&apos;re automatically considered for any new matching roles in the future. No extra applications, no extra hassle.
             </p>
           </div>
-          <div className="flex gap-3 lg:-mb-16">
+          <div className="flex gap-4 lg:-mb-24">
             {[
               {
                 name: "Brainstorming Session",
@@ -462,29 +463,36 @@ function AssessmentsTab() {
                 roles: 0,
                 pay: "$0/hourly",
               },
+              {
+                name: "Influencer Video Assessment",
+                duration: "20 minutes",
+                desc: "On-camera audience-fit interview — brand-voice match, hook quality, call-to-action delivery",
+                roles: 4,
+                pay: "$120/hourly",
+              },
             ].map((card) => (
               <div
                 key={card.name}
-                className="w-[220px] shrink-0 rounded-[12px] bg-white p-4 shadow-[0_8px_24px_rgba(15,7,52,0.18)]"
+                className="w-[260px] shrink-0 rounded-[14px] bg-white p-5 shadow-[0_12px_28px_rgba(15,7,52,0.22)]"
               >
-                <div className="flex items-center gap-1.5 text-[11px] text-[var(--fg-muted)]">
-                  <Clock size={11} strokeWidth={1.7} />
+                <div className="flex items-center gap-1.5 text-[12px] text-[var(--fg-muted)]">
+                  <Clock size={12} strokeWidth={1.7} />
                   {card.duration}
                 </div>
-                <div className="mt-2 text-[14px] font-semibold leading-snug text-[var(--fg)]">
+                <div className="mt-2.5 text-[17px] font-semibold leading-snug text-[var(--fg)]">
                   {card.name}
                 </div>
-                <span className="mt-1.5 inline-block rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
+                <span className="mt-2 inline-block rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
                   CORE
                 </span>
-                <p className="mt-3 text-[11px] leading-snug text-[var(--fg-muted)]">{card.desc}</p>
-                <div className="mt-3 text-[11px] text-[var(--fg-muted)]">
+                <p className="mt-3 text-[12px] leading-snug text-[var(--fg-muted)]">{card.desc}</p>
+                <div className="mt-3 text-[12px] text-[var(--fg-muted)]">
                   Used by <span className="font-semibold text-[var(--fg)]">{card.roles} roles</span>
                 </div>
-                <div className="text-[11px] text-[var(--fg-muted)]">
+                <div className="text-[12px] text-[var(--fg-muted)]">
                   Paying up to <span className="font-semibold text-[var(--fg)]">{card.pay}</span>
                 </div>
-                <button className="mt-3 w-full rounded-[8px] bg-[var(--accent)] py-1.5 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors">
+                <button className="mt-4 w-full rounded-[8px] bg-[var(--accent)] py-2 text-[13px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors">
                   Start interview
                 </button>
               </div>
@@ -494,7 +502,7 @@ function AssessmentsTab() {
       </div>
 
       {/* Search bar — Mercor uses just a search icon, no filter funnel */}
-      <div className="lg:mt-20 flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5">
+      <div className="lg:mt-28 flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5">
         <Search size={14} className="shrink-0 text-[var(--fg-muted)]" />
         <input
           className="flex-1 bg-transparent text-[13px] placeholder-[var(--fg-subtle)] outline-none"
@@ -549,8 +557,8 @@ function AssessmentsTab() {
             NEW - Mercor
           </div>
           <AssessmentAccordion
-            title="Creators & Influencers Assessments"
-            count={3}
+            title="Influencer & Creator Expert Assessments"
+            count={4}
             assessments={CREATOR_ASSESSMENTS}
             defaultOpen
             icon={<Heart size={15} className="text-[#f4a8b6]" />}

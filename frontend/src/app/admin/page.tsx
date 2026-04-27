@@ -63,7 +63,6 @@ type KpiSpec = {
   id: KpiId;
   label: string;
   sub: (tot: number) => string;
-  source: string;
   base: number;
   format: (v: number) => string;
   formatDelta: (d: number) => string;
@@ -75,7 +74,6 @@ type KpiData = {
   label: string;
   value: string;
   sub: string;
-  source: string;
 };
 
 type ActionItem = {
@@ -100,7 +98,7 @@ const SEED_ACTION_ITEMS: ActionItem[] = [
   {
     id: "a1",
     priority: "high",
-    text: "Approve 4 Haiku-drafted opener messages — Sam Sulek, JoelBergs, Marques Brownlee, Antonie Lokhorst",
+    text: "Approve 4 drafted opener messages — Sam Sulek, JoelBergs, Marques Brownlee, Antonie Lokhorst",
     href: "/admin/outreach",
     cta: "Review →",
     kpiTargets: [{ kpiId: "auto_draft_queue", delta: -4 }],
@@ -297,7 +295,6 @@ function KPICard({
         ) : null}
       </div>
       <div className="mt-0.5 text-[12px] text-[var(--fg-muted)]">{kpi.sub}</div>
-      <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--fg-subtle)]">{kpi.source}</div>
     </div>
   );
 }
@@ -471,8 +468,7 @@ export default function AdminOverviewPage() {
         kpi: {
           label: KPI_LABELS.brand_voice_fit,
           value: (0.872 + brandFitDrift + fitDelta).toFixed(3),
-          sub: `Avg cosine sim · top-${totalCreators} creators × 17 active briefs`,
-          source: "pgvector · 1536-d embeddings",
+          sub: `Avg cosine sim · top-${totalCreators} experts × 17 active briefs`,
         },
         spark: [0.81, 0.82, 0.84, 0.83, 0.85, 0.86, 0.87, 0.86, 0.87, 0.872 + fitDelta],
         sparkColor: "var(--accent)",
@@ -485,7 +481,6 @@ export default function AdminOverviewPage() {
           label: KPI_LABELS.comment_relevance,
           value: `${latestRel + relDelta}%`,
           sub: "RAG-grounded payout fairness across active campaigns",
-          source: "scraped comments · re-embedded hourly",
         },
         spark: [18, 21, 24, 26, 29, 31, 34, 37, 40, latestRel + relDelta],
         sparkColor: "#16a34a",
@@ -497,8 +492,7 @@ export default function AdminOverviewPage() {
         kpi: {
           label: KPI_LABELS.audience_overlap,
           value: (0.74 + overlapDelta).toFixed(2),
-          sub: "New creator hashtags × live brand ad themes",
-          source: "TikTok scrape · top-30 hashtags / creator",
+          sub: "New expert hashtags × live brand ad themes",
         },
         spark: [0.58, 0.61, 0.63, 0.65, 0.67, 0.69, 0.71, 0.72, 0.73, 0.74 + overlapDelta],
         sparkColor: "#7857ff",
@@ -510,8 +504,7 @@ export default function AdminOverviewPage() {
         kpi: {
           label: KPI_LABELS.auto_draft_queue,
           value: `${Math.max(0, 12 + queueDelta)}`,
-          sub: "Haiku-drafted messages awaiting your approval",
-          source: "Claude Haiku · zero-shot brief → outreach",
+          sub: "Drafted messages awaiting your approval",
         },
         spark: [4, 5, 7, 6, 8, 9, 10, 11, 11, Math.max(0, 12 + queueDelta)],
         sparkColor: "#f59e0b",
@@ -546,7 +539,7 @@ export default function AdminOverviewPage() {
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <h1 className="h-display text-[28px]">Creators &amp; Influencers - Strategic Operations</h1>
+        <h1 className="h-display text-[28px]">Overview</h1>
       </div>
 
       <section className="mt-8 grid gap-4 md:grid-cols-4" data-test-id="admin-kpi-grid">

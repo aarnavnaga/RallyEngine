@@ -235,23 +235,23 @@ function LandingContent() {
       {/* ============================================================ */}
       {/* 2. Hero section                                                */}
       {/* ============================================================ */}
-      <section className="mt-24 px-6 text-center">
+      <section className="mt-10 px-6 text-center sm:mt-24">
         <div className="mx-auto max-w-3xl">
 
-          {/* Stat pills bar */}
-          <div className="mx-auto inline-flex items-center divide-x divide-[var(--border)] rounded-full bg-[var(--bg-elev)] shadow-[var(--shadow-card)]">
+          {/* Stat pills bar — vertical on mobile, horizontal pill bar on desktop */}
+          <div className="mx-auto flex flex-col divide-y divide-[var(--border)] rounded-2xl bg-[var(--bg-elev)] shadow-[var(--shadow-card)] sm:inline-flex sm:flex-row sm:items-center sm:divide-x sm:divide-y-0 sm:rounded-full">
             <StatPill label="Average pay" value="$101/hr" />
             <StatPill label="Roles created" value="185.9k" />
             <StatPill label="Daily payouts" value="$2.0M+" />
           </div>
 
           {/* Headline */}
-          <h1 className="mt-8 text-6xl font-medium tracking-tight text-[var(--fg)]">
+          <h1 className="mt-6 text-[44px] font-medium leading-[1.05] tracking-tight text-[var(--fg)] sm:mt-8 sm:text-6xl sm:leading-tight">
             Shape the future of AI
           </h1>
 
           {/* Subtitle */}
-          <p className="mx-auto mt-4 max-w-xl text-lg text-[var(--fg-muted)]">
+          <p className="mx-auto mt-3 max-w-xl text-base text-[var(--fg-muted)] sm:mt-4 sm:text-lg">
             Find top-tier, remote, AI roles for your expertise. Available only on Mercor.
           </p>
 

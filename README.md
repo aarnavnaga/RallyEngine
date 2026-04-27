@@ -164,7 +164,7 @@ RallyEngine/
 │   │   │   ├── explore/               ← OpportunityCard, JobDetailPanel
 │   │   │   └── landing/               ← MeetCard, RoleCard, StatPill
 │   │   └── lib/
-│   │       ├── data/                  ← static seed data: brands, creators, campaigns, contracts, friends, logan-resume, seed-deliverables, creator-avatars
+│   │       ├── data/                  ← static seed data: brands, creators, campaigns, contracts, friends, logan-resume, seed-deliverables, creator-avatars, embeddings.json
 │   │       ├── state/                 ← React context (user, deliverables)
 │   │       └── util/score.ts          ← impact + similarity formulas
 │   └── public/

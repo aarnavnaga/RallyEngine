@@ -46,7 +46,7 @@ export default function CampaignsPage() {
         <h1 className="h-display text-[28px]">Active campaigns</h1>
       </div>
       <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
-        {CAMPAIGNS.length} live campaigns across {uniqueBrands} brands. Click in for the perf simulator.
+        {CAMPAIGNS.length} live campaigns across {uniqueBrands} brands. Click any campaign to see live performance and creator pipeline.
       </p>
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
@@ -66,9 +66,11 @@ export default function CampaignsPage() {
               : campaign.brief;
 
           return (
-            <div
+            <Link
               key={campaign.id}
-              className="flex flex-col rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-5"
+              href={`/admin/campaigns/${campaign.id}`}
+              data-test-id={`campaign-card-${campaign.id}`}
+              className="group flex flex-col rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-5 transition hover:border-[var(--accent)] hover:shadow-[0_2px_8px_rgba(120,87,255,0.08)]"
             >
               {/* Header */}
               <div className="flex items-start justify-between gap-2">
@@ -118,16 +120,10 @@ export default function CampaignsPage() {
               </div>
 
               {/* CTA */}
-              <div className="mt-4 pt-1">
-                <Link
-                  href={`/admin/campaigns/${campaign.id}`}
-                  className="btn-primary inline-flex items-center gap-1 text-[12px]"
-                  data-test-id={`campaign-card-${campaign.id}`}
-                >
-                  Open simulator →
-                </Link>
+              <div className="mt-4 flex items-center justify-end pt-1 text-[12px] font-medium text-[var(--accent)] opacity-80 transition group-hover:opacity-100">
+                Open campaign →
               </div>
-            </div>
+            </Link>
           );
         })}
       </section>

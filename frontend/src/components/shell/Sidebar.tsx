@@ -55,13 +55,13 @@ export function Sidebar() {
   const items = identity?.persona === "admin" ? ADMIN_ITEMS : CREATOR_ITEMS;
 
   function handleSwitchPersona() {
-    // Land on each persona's home: creator → /explore, admin → /admin.
+    // Land on each persona's home: creator → /home, admin → /admin.
     // Without this, switching from /admin/campaigns to creator left the URL
     // on the admin route with creator nav showing — no nav item matched the
     // path so nothing highlighted.
     const nextPersona = identity?.persona === "admin" ? "creator" : "admin";
     switchPersona();
-    router.push(nextPersona === "admin" ? "/admin" : "/explore");
+    router.push(nextPersona === "admin" ? "/admin" : "/home");
   }
 
   return (
@@ -69,7 +69,7 @@ export function Sidebar() {
       {/* Top: Mercor-style M wordmark */}
       <div className="flex w-full flex-col items-center gap-3">
         <Link
-          href={identity?.persona === "admin" ? "/admin" : "/explore"}
+          href={identity?.persona === "admin" ? "/admin" : "/home"}
           aria-label="Mercor home"
           className="grid h-10 w-10 place-items-center rounded-md text-[var(--accent)]"
         >

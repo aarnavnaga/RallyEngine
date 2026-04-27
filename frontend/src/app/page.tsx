@@ -29,7 +29,7 @@ function LoginDropdown({ onClose }: { onClose: () => void }) {
   function chooseCreator() {
     signInAs("creator");
     onClose();
-    router.push("/explore");
+    router.push("/home");
   }
   function chooseAdmin() {
     signInAs("admin");
@@ -177,9 +177,11 @@ function LandingContent() {
   // hydration gate already prevents `/home` etc. from bouncing through
   // here, but in case someone deep-links to `/`, wait for hydrated so we
   // don't briefly flash the landing page before redirecting.
+  // Creator default = /home (Mercor-style creator dashboard, not the
+  // search/explore grid). Admin default = /admin.
   useEffect(() => {
     if (!hydrated) return;
-    if (identity?.persona === "creator") router.replace("/explore");
+    if (identity?.persona === "creator") router.replace("/home");
     else if (identity?.persona === "admin") router.replace("/admin");
   }, [hydrated, identity, router]);
 

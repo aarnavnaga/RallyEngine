@@ -754,7 +754,7 @@ function DealDetail({ deal, autoMediate, onUpdate }: DealDetailProps) {
         <div className="flex items-center gap-3">
           <Avatar name={creator.name} size={40} />
           <div className="text-[14px] font-medium text-[var(--fg-muted)]">×</div>
-          <BrandMark brand={brand} size={40} />
+          <BrandMark key={brand.id} brand={brand} size={40} eager />
           <div className="ml-2 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-semibold">{creator.name} × {brand.name}</span>
@@ -792,7 +792,7 @@ function DealDetail({ deal, autoMediate, onUpdate }: DealDetailProps) {
         <ChatTab
           active={side === "brand"}
           onClick={() => setSide("brand")}
-          icon={<BrandMark brand={brand} size={16} />}
+          icon={<BrandMark key={brand.id} brand={brand} size={16} />}
           kind="brand"
           label={`Aaron → ${brand.name}`}
           unread={deal.brandChat.messages[deal.brandChat.messages.length - 1]?.from === "brand"}

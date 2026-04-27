@@ -17,7 +17,25 @@ function isLocalPath(value: string): boolean {
   return value.startsWith("/");
 }
 
-export function BrandMark({ brand, size = 28 }: { brand: Brand; size?: number }) {
+type BrandMarkProps = {
+  brand: Brand;
+  size?: number;
+  /**
+   * When true, force eager image loading — use only for above-the-fold
+   * brand logos (e.g. the contract preview header). Default is lazy so
+   * grids/lists with many BrandMarks don't flood the network.
+   *
+   * Note: callers that reuse a single BrandMark instance for multiple
+   * brands (e.g. a contract preview that swaps brands on row click)
+   * should pass `key={brand.id}` to force remount and reset the
+   * onError-driven fallback chain. Without that, the level state from
+   * the previous brand can leak in and a missing logo only resolves
+   * after onError cycles through.
+   */
+  eager?: boolean;
+};
+
+export function BrandMark({ brand, size = 28, eager = false }: BrandMarkProps) {
   const domain = domainFromWebsite(brand.website);
   const clearbitSrc = `https://logo.clearbit.com/${domain}`;
   const googleSrc = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
@@ -86,7 +104,9 @@ export function BrandMark({ brand, size = 28 }: { brand: Brand; size?: number })
       <img
         src={src}
         alt={brand.name}
-        loading="lazy"
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        fetchPriority={eager ? "high" : "auto"}
         onError={handleError}
         style={{
           width: size - 4,

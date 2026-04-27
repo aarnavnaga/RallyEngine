@@ -78,7 +78,11 @@ export function Sidebar() {
                 aria-current={active ? "page" : undefined}
                 data-test-id={item.testId}
               >
-                <Icon size={22} strokeWidth={1.5} />
+                <Icon
+                  size={22}
+                  strokeWidth={active ? 1.4 : 1.5}
+                  fill={active ? "currentColor" : "none"}
+                />
                 <span>{item.label}</span>
               </Link>
             );

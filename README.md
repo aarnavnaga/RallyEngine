@@ -1,4 +1,4 @@
-# Mercor demo — `rallyai.org`
+# Mercor demo — `musing-maxwell-84ed29.vercel.app`
 
 Live demo for the **Aaron Langerman pitch** that positions a new `Creators & Influencers` expert vertical inside Mercor's existing marketplace. Mirrors `work.mercor.com` 1:1 in look and feel; same Explore grid, same application stepper, same contracts, same Stripe earnings, same Referrals — just a new domain row and new humans (creators + influencers).
 
@@ -295,7 +295,7 @@ pnpm build              # verify it builds
 vercel deploy --prod    # ship
 ```
 
-Domain `rallyai.org` should CNAME to the Vercel project. Backend (`api.py`) is not deployed for this demo — everything is client-side.
+Live preview: `https://musing-maxwell-84ed29.vercel.app/` (Vercel auto-deploy on push to `claude/musing-maxwell-84ed29`). Custom domain TBD. Backend (`api.py`) is not deployed for this demo — everything is client-side.
 
 ---
 
@@ -353,7 +353,7 @@ Auto-merge fires the moment **CI green + Copilot/Bugbot green + Arnav approve**.
 
 ## What's still pending
 
-- Vercel deploy + `rallyai.org` CNAME
+- Custom domain CNAME (Vercel preview at `musing-maxwell-84ed29.vercel.app` is live)
 - Render backend (only if we keep the Python bits live)
 - Final 7-minute demo rehearsal on production
 - README auto-update bot (this file should self-maintain on every PR)

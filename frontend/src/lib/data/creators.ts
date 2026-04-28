@@ -40,6 +40,12 @@ export type Creator = {
     // the Logan x Celsius "Average quant" wow moment reproducible on stage.
     pin_for?: string[];
   }[];
+  // Brand IDs where this creator should always rank #1 in /admin/match and
+  // /admin/campaigns top-creator lists, regardless of raw cosine + impact.
+  // Mirrors the per-post `pin_for` mechanism but at creator-rank scope.
+  // Used for the Aaron pitch wow-moment: Logan's small (22.7K) account ranks
+  // ~#3 by raw cosine but the pitch demands he leads the Celsius match list.
+  pin_first_for?: string[];
 };
 
 // Logan Mann - the headliner, real account
@@ -64,6 +70,10 @@ export const LOGAN: Creator = {
   geo_match_targets: ["UCSB", "Santa Barbara", "Southern California"],
   status: "applied",
   applied_to: ["celsius", "bucked-up"],
+  // Anchor Logan to #1 for the Aaron pitch's primary wow-moment brand.
+  // Without this, raw cosine puts mid-tier accounts (Jenny Kndd, Cassey Ho)
+  // ahead of Logan's 22.7K UCSB STEM creator and the demo loses the punchline.
+  pin_first_for: ["celsius"],
   cited_posts: [
     {
       url: "https://www.tiktok.com/@loganmann32/video/7608429326211501326",

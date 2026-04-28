@@ -129,8 +129,15 @@ export function buildCitations(creator: Creator, brand: Brand): CitationMatch[] 
   if (!creator.cited_posts) return [];
   // Rank cited posts by cosine vs brand vector when both vectors exist.
   // Falls back to file order when embeddings are missing for either side.
+  // Posts whose `pin_for` list includes the current brand always sort to the
+  // top — this is the demo's hand-tuned anchor for wow-moment citations
+  // (e.g. Logan's "Average quant" post is pinned for Celsius even when
+  // cosine alone would surface generic gym posts first).
   const brandVec = IDX.brands[brand.id];
   const ranked = [...creator.cited_posts].sort((a, b) => {
+    const aPinned = a.pin_for?.includes(brand.id) ? 1 : 0;
+    const bPinned = b.pin_for?.includes(brand.id) ? 1 : 0;
+    if (aPinned !== bPinned) return bPinned - aPinned;
     if (!brandVec) return 0;
     const ca = cosineSim(IDX.posts[a.url], brandVec) ?? -1;
     const cb = cosineSim(IDX.posts[b.url], brandVec) ?? -1;

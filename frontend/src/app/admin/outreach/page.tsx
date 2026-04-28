@@ -9,7 +9,7 @@ import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
 import { Avatar } from "@/components/shell/Avatar";
 import { BrandMark } from "@/components/shell/BrandMark";
 import { ClaudeMark } from "@/components/shell/ClaudeMark";
-import { computeImpact, computeSuggestedPay, fmtCurrency, fmtFollowers, similarity } from "@/lib/util/score";
+import { buildCitations, computeImpact, computeSuggestedPay, fmtCurrency, fmtFollowers, similarity } from "@/lib/util/score";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,10 +66,15 @@ type TabName = "Pending" | "Negotiating" | "Offer" | "Signed";
 
 function buildCreatorOutreach(creator: Creator, brand: Brand, campaignTitle: string, low: number, high: number): string {
   const firstName = creator.name.split(" ")[0];
-  const post = creator.cited_posts?.[0];
+  // Use the same brand-aware ranked citation (pin_for + cosine) as /admin/match
+  // so the outreach quote stays in lockstep with the wow-moment shown on the
+  // match page. Falls back to file order when buildCitations returns empty.
+  const topCitation = buildCitations(creator, brand)[0];
+  const post = topCitation ?? creator.cited_posts?.[0];
   const hashtags = post?.hashtags?.slice(0, 2).join(" ") ?? creator.niche_tags.slice(0, 2).map((t) => `#${t}`).join(" ");
-  if (creator.id === "loganmann32" && post) {
-    return `Hey ${firstName} - saw your "${post.caption}" post (${post.url}). The ${hashtags} angle is exactly the kind of audience ${brand.name} pays for - UCSB STEM-coded, gym-native, no-fluff energy that converts. We'd love to bring you into our ${campaignTitle} run - ${fmtCurrency(low)}-${fmtCurrency(high)}/post, full autonomy on the script. Worth a 10-minute call this week?`;
+  const postUrl = topCitation?.cited_post_url ?? creator.cited_posts?.[0]?.url;
+  if (creator.id === "loganmann32" && post && postUrl) {
+    return `Hey ${firstName} - saw your "${post.caption}" post (${postUrl}). The ${hashtags} angle is exactly the kind of audience ${brand.name} pays for - UCSB STEM-coded, gym-native, no-fluff energy that converts. We'd love to bring you into our ${campaignTitle} run - ${fmtCurrency(low)}-${fmtCurrency(high)}/post, full autonomy on the script. Worth a 10-minute call this week?`;
   }
   return `Hey ${firstName} - your ${creator.niche} content is exactly the vibe ${brand.name} is looking for. The ${hashtags} positioning hits the same audience their ${brand.brand_voice[0] ?? "brand voice"} campaign is targeting. We'd love to bring you into our ${campaignTitle} run - ${fmtCurrency(low)}-${fmtCurrency(high)}/post, full creative autonomy. Worth a quick 10-minute call to see if this is a fit?`;
 }
@@ -79,7 +84,9 @@ function buildBrandOutreach(brand: Brand, creator: Creator, campaignTitle: strin
 }
 
 function simulatedCreatorReply(brand: Brand, creator: Creator): string {
-  const post = creator.cited_posts?.[0];
+  // Brand-aware ranked citation matches /admin/match wow-moment ordering.
+  const topCitation = buildCitations(creator, brand)[0];
+  const post = topCitation ?? creator.cited_posts?.[0];
   if (creator.id === "loganmann32" && post) {
     return `Yeah honestly ${brand.name} would crush with my crowd. The morning gym + study angle is already 60% of my comments. Could do $1100/post if you ship product first. What's the timeline?`;
   }

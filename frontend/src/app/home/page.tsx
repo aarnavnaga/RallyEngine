@@ -47,7 +47,7 @@ function ContractBrandMark({
   const initial = label.replace(/[^A-Za-z]/g, "").slice(0, 1).toUpperCase();
   return (
     <span
-      className="inline-grid shrink-0 place-items-center rounded-md font-semibold text-white"
+      className="inline-grid shrink-0 place-items-center rounded-[6px] font-semibold text-white"
       style={{
         width: size,
         height: size,
@@ -84,6 +84,19 @@ function KindPill({ kind }: { kind: Contract["contract_kind"] }) {
   return (
     <span className="pill pill-accent text-[10px]">{labels[kind]}</span>
   );
+}
+
+// Compact subtitle label used in the row layout — "Hourly", "Project",
+// "Creator campaign" without the trailing "contract" word.
+function kindShortLabel(kind: Contract["contract_kind"]): string {
+  const map: Record<Contract["contract_kind"], string> = {
+    hourly: "Hourly",
+    project: "Project",
+    "creator-post": "Creator post",
+    "creator-campaign": "Creator campaign",
+    "campus-ambassador": "Campus ambassador",
+  };
+  return map[kind];
 }
 
 // ─── Tab config ──────────────────────────────────────────────────────────────
@@ -293,60 +306,59 @@ function ContractsTab() {
   const active = CONTRACTS.filter(
     (c) => c.status === "active" || c.status === "paused",
   );
+  const past = CONTRACTS.filter((c) => c.status === "completed");
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {active.map((c) => (
         <ContractCard key={c.id} contract={c} />
       ))}
+      {past.length > 0 && (
+        <CollapsibleSection
+          title="Past contracts"
+          count={past.length}
+          defaultOpen={false}
+        >
+          {past.map((c) => (
+            <ContractCard key={c.id} contract={c} />
+          ))}
+        </CollapsibleSection>
+      )}
     </div>
   );
 }
 
 function ContractCard({ contract: c }: { contract: Contract }) {
-  const preview = c.onboarding_doc_body.slice(0, 160).trim();
   const payLabel =
     c.hourly_pay_usd != null
-      ? `$${c.hourly_pay_usd.toFixed(2)} / hour`
+      ? `$${c.hourly_pay_usd.toFixed(2)}/hour`
       : c.flat_pay_usd != null
         ? `$${c.flat_pay_usd.toLocaleString()} flat`
-        : "-";
-
+        : "—";
+  const subtitle = [payLabel, kindShortLabel(c.contract_kind), c.brand_label]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <div
-      className="card p-5"
+    <Link
+      href={`/contracts/${c.id}`}
       data-test-id={`home-contract-${c.id}`}
+      className="flex items-center gap-3 rounded-[8px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
     >
-      <div className="flex items-center gap-3 justify-between flex-wrap gap-y-2">
-        <div className="flex items-center gap-2">
-          <ContractBrandMark label={c.brand_label} size={24} />
-          <span className="text-[13px] font-medium">{c.brand_label}</span>
-          <KindPill kind={c.contract_kind} />
+      <ContractBrandMark label={c.brand_label} size={28} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13.5px] font-medium text-[var(--fg)]">
+          {c.role}
         </div>
-        <span className="text-[11px] text-[var(--fg-muted)]">
-          Received {c.received_ago_days} day{c.received_ago_days !== 1 ? "s" : ""} ago
+        <div className="mt-0.5 truncate text-[12px] text-[var(--fg-muted)]">
+          {subtitle}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="hidden text-[11px] text-[var(--fg-muted)] sm:inline">
+          Updated {c.received_ago_days} day{c.received_ago_days !== 1 ? "s" : ""} ago
         </span>
+        <StatusPill status={c.status} />
       </div>
-
-      <div className="mt-3">
-        <div className="text-[15px] font-semibold">{c.role}</div>
-        <p className="mt-1 text-[12px] text-[var(--fg-muted)] leading-relaxed line-clamp-2">
-          {preview}…
-        </p>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold">{payLabel}</span>
-          <StatusPill status={c.status} />
-        </div>
-        <Link
-          href={`/contracts/${c.id}`}
-          className="text-[13px] font-medium text-[var(--accent)] hover:underline"
-        >
-          Open contract →
-        </Link>
-      </div>
-    </div>
+    </Link>
   );
 }
 
@@ -361,33 +373,30 @@ function OffersTab() {
 }
 
 function OfferCard({ offer: o }: { offer: Offer }) {
+  const subtitle = [o.pay_label, o.brand_label].filter(Boolean).join(" · ");
   return (
-    <div className="card p-5" data-test-id={`home-offer-${o.id}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ContractBrandMark label={o.brand_label} size={24} />
-          <span className="text-[13px] font-medium">{o.brand_label}</span>
+    <div
+      className="flex items-center gap-3 rounded-[8px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
+      data-test-id={`home-offer-${o.id}`}
+    >
+      <ContractBrandMark label={o.brand_label} size={28} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13.5px] font-medium text-[var(--fg)]">
+          {o.role}
         </div>
-        <span className="text-[11px] text-[var(--fg-muted)] shrink-0">
-          Posted {o.posted_ago_days} day{o.posted_ago_days !== 1 ? "s" : ""} ago
-          {" · "}
-          Expires in {o.expires_in_days} day{o.expires_in_days !== 1 ? "s" : ""}
+        <div className="mt-0.5 truncate text-[12px] text-[var(--fg-muted)]">
+          {subtitle}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="hidden text-[11px] text-[var(--fg-muted)] md:inline">
+          Expires in {o.expires_in_days}d
         </span>
-      </div>
-
-      <div className="mt-2">
-        <div className="text-[15px] font-semibold">{o.role}</div>
-        <p className="mt-1 text-[12px] text-[var(--fg-muted)]">{o.one_line}</p>
-      </div>
-
-      <div className="mt-3 text-[13px] font-semibold">{o.pay_label}</div>
-
-      <div className="mt-4 flex items-center gap-2">
-        <button className="rounded-[6px] bg-[var(--accent)] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors">
-          Accept offer
-        </button>
-        <button className="rounded-[6px] border border-[var(--border)] px-4 py-1.5 text-[12px] font-medium hover:bg-[var(--bg-hover)] transition-colors">
+        <button className="rounded-[6px] border border-[var(--border)] px-3 py-1 text-[12px] font-medium hover:bg-[var(--bg-hover)] transition-colors">
           Pass
+        </button>
+        <button className="rounded-[6px] bg-[var(--accent)] px-3 py-1 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors">
+          Accept
         </button>
       </div>
     </div>
@@ -395,40 +404,112 @@ function OfferCard({ offer: o }: { offer: Offer }) {
 }
 
 function ApplicationsTab() {
+  // In-progress applications stay in the main list. Submitted/under-review/
+  // interview/rejected go into the collapsible "Submitted applications" so the
+  // top of the page mirrors Mercor's "active first, archive collapsed" rhythm.
+  const inProgress = APPLICATIONS.filter((a) => a.status === "in-progress");
+  const submitted = APPLICATIONS.filter((a) => a.status !== "in-progress");
   return (
-    <div className="space-y-3">
-      {APPLICATIONS.map((a) => (
+    <div className="space-y-2">
+      {inProgress.map((a) => (
         <ApplicationCard key={a.id} application={a} />
       ))}
+      {submitted.length > 0 && (
+        <CollapsibleSection
+          title="Submitted applications"
+          count={submitted.length}
+          defaultOpen
+        >
+          {submitted.map((a) => (
+            <ApplicationCard key={a.id} application={a} />
+          ))}
+        </CollapsibleSection>
+      )}
     </div>
   );
 }
 
 function ApplicationCard({ application: a }: { application: Application }) {
-  const statusMap: Record<Application["status"], { label: string; cls: string }> = {
+  const subtitle = [a.pay_label, a.kind_label, a.brand_label]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <div
+      className="flex items-center gap-3 rounded-[8px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
+      data-test-id={`home-application-${a.id}`}
+    >
+      <ContractBrandMark label={a.brand_label} size={28} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13.5px] font-medium text-[var(--fg)]">
+          {a.role}
+        </div>
+        <div className="mt-0.5 truncate text-[12px] text-[var(--fg-muted)]">
+          {subtitle}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        {a.status === "in-progress" ? (
+          <>
+            <span className="hidden text-[11px] text-[var(--fg-muted)] sm:inline">
+              Started on {a.submitted_on}
+            </span>
+            <span className="pill pill-warning text-[10px]">
+              {a.steps_completed ?? 3} of {a.steps_total ?? 4} steps completed
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="hidden text-[11px] text-[var(--fg-muted)] sm:inline">
+              Submitted on {a.submitted_on}
+            </span>
+            <ApplicationStatusPill status={a.status} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ApplicationStatusPill({ status }: { status: Application["status"] }) {
+  const map: Record<Application["status"], { label: string; cls: string }> = {
+    "in-progress": { label: "In progress", cls: "pill pill-warning" },
+    submitted: { label: "Submitted", cls: "pill pill-success" },
     review: { label: "Under review", cls: "pill pill-warning" },
     interview: { label: "Interview", cls: "pill pill-accent" },
     rejected: { label: "Rejected", cls: "pill" },
   };
-  const { label, cls } = statusMap[a.status];
+  const { label, cls } = map[status];
+  return <span className={cls}>{label}</span>;
+}
+
+// ─── Generic collapsible used for "Past contracts" / "Submitted applications"
+function CollapsibleSection({
+  title,
+  count,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  count: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="card p-5" data-test-id={`home-application-${a.id}`}>
-      <div className="flex items-center gap-2">
-        <ContractBrandMark label={a.brand_label} size={24} />
-        <span className="text-[13px] font-medium">{a.brand_label}</span>
-      </div>
-      <div className="mt-2 text-[15px] font-semibold">{a.role}</div>
-      <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span className={cls}>{label}</span>
-          <span className="text-[11px] text-[var(--fg-muted)]">
-            Submitted {a.submitted_ago_days} day{a.submitted_ago_days !== 1 ? "s" : ""} ago
-          </span>
-        </div>
-        <button className="text-[12px] text-[var(--fg-muted)] hover:text-[var(--danger)] transition-colors underline">
-          Withdraw
-        </button>
-      </div>
+    <div className="pt-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex cursor-pointer items-center gap-1.5 text-[13px] font-medium text-[var(--fg)] hover:text-[var(--accent)]"
+      >
+        {open ? (
+          <ChevronDown size={14} className="text-[var(--fg-muted)]" />
+        ) : (
+          <ChevronRight size={14} className="text-[var(--fg-muted)]" />
+        )}
+        {title} ({count})
+      </button>
+      {open && <div className="mt-2 space-y-2">{children}</div>}
     </div>
   );
 }
@@ -623,10 +704,10 @@ function HomePageInner() {
               data-test-id={`home-tab-${t.slug}`}
               onClick={() => switchTab(t.slug)}
               className={[
-                "flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-medium transition-colors",
+                "flex items-center gap-1.5 px-4 py-2.5 text-[13px] transition-colors",
                 isActive
-                  ? "border-b-2 border-[var(--accent)] text-[var(--accent)]"
-                  : "text-[var(--fg-muted)] hover:text-[var(--fg)]",
+                  ? "border-b-2 border-[var(--accent)] font-semibold text-[var(--accent)]"
+                  : "font-medium text-[var(--fg-muted)] hover:text-[var(--fg)]",
               ].join(" ")}
               style={{ marginBottom: isActive ? -1 : 0 }}
             >
@@ -637,7 +718,7 @@ function HomePageInner() {
                     "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                     isActive
                       ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                      : "bg-[var(--bg-elev)] text-[var(--fg-muted)]",
+                      : "bg-[var(--border)] text-[var(--fg-muted)]",
                   ].join(" ")}
                 >
                   {t.count}

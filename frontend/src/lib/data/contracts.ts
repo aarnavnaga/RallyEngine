@@ -257,7 +257,7 @@ export const CONTRACTS: Contract[] = [
     brand_label: "Mercor (Campus)",
     role: "Campus Ambassador - UCSB",
     contract_kind: "campus-ambassador",
-    status: "draft",
+    status: "completed",
     received_ago_days: 0,
     hourly_pay_usd: 30,
     weekly_cap: "5 hours",
@@ -330,21 +330,123 @@ export const OFFERS: Offer[] = [
 ];
 
 // Open applications Logan has submitted but hasn't been accepted on yet.
+// Mirrors Mercor's home > Applications tab pattern: one in-progress card with a
+// "X of Y steps completed" badge, then a collapsible "Submitted applications"
+// section listing previously-submitted apps with a green Submitted pill.
 export type Application = {
   id: string;
   brand: Contract["brand"] | "ryse" | "alphalete";
   brand_label: string;
   role: string;
+  pay_label: string; // "$55 - $75", "$20/ hour", "$100"
+  kind_label: string; // "Part time", "Hourly contract"
+  submitted_on: string; // "04/26/26"
   submitted_ago_days: number;
-  status: "review" | "interview" | "rejected";
+  status: "in-progress" | "submitted" | "review" | "interview" | "rejected";
+  // Only populated for in-progress applications
+  steps_completed?: number;
+  steps_total?: number;
 };
 
 export const APPLICATIONS: Application[] = [
+  {
+    id: "app_ceoFounders",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "CEOs & Founders (50+ Employees)",
+    pay_label: "$5,000",
+    kind_label: "Part time",
+    submitted_on: "04/26/26",
+    submitted_ago_days: 1,
+    status: "in-progress",
+    steps_completed: 3,
+    steps_total: 4,
+  },
+  {
+    id: "app_aiPhoto",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "AI Photo Contributor",
+    pay_label: "$20/ hour",
+    kind_label: "Hourly contract",
+    submitted_on: "04/27/26",
+    submitted_ago_days: 0,
+    status: "submitted",
+  },
+  {
+    id: "app_personalLearning",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "Personal Learning / Career Expert",
+    pay_label: "$55 - $75",
+    kind_label: "Part time",
+    submitted_on: "04/26/26",
+    submitted_ago_days: 1,
+    status: "submitted",
+  },
+  {
+    id: "app_openSourceTalent",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "Open Source Applied Engineer Talent Network",
+    pay_label: "$100",
+    kind_label: "Part time",
+    submitted_on: "04/25/26",
+    submitted_ago_days: 2,
+    status: "submitted",
+  },
+  {
+    id: "app_jpStem",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "Japanese STEM Translation Reviewer",
+    pay_label: "$70/ hour",
+    kind_label: "Hourly contract",
+    submitted_on: "04/22/26",
+    submitted_ago_days: 5,
+    status: "submitted",
+  },
+  {
+    id: "app_econChart",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "Economics Chart Analysis Expert",
+    pay_label: "$75 - $83",
+    kind_label: "Part time",
+    submitted_on: "04/23/26",
+    submitted_ago_days: 4,
+    status: "submitted",
+  },
+  {
+    id: "app_physics",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "Physics Expert",
+    pay_label: "$75 - $83",
+    kind_label: "Part time",
+    submitted_on: "04/23/26",
+    submitted_ago_days: 4,
+    status: "submitted",
+  },
+  {
+    id: "app_statistics",
+    brand: "mercor",
+    brand_label: "Mercor",
+    role: "Statistics Expert",
+    pay_label: "$72 - $80",
+    kind_label: "Part time",
+    submitted_on: "04/23/26",
+    submitted_ago_days: 4,
+    status: "submitted",
+  },
   {
     id: "app_ryseGodzilla",
     brand: "ryse",
     brand_label: "Ryse Supps",
     role: "Creator - Godzilla Pre Lift Demo",
+    pay_label: "$1,200",
+    kind_label: "Creator post",
+    submitted_on: "04/23/26",
     submitted_ago_days: 4,
     status: "review",
   },

@@ -112,7 +112,9 @@ export default function CampaignDetailPage({
   const campaign = CAMPAIGNS_BY_ID[id];
   const brand = campaign ? BRANDS_BY_ID[campaign.brand_id] : null;
 
-  // Derive top-5 creators by similarity to this campaign's brand
+  // Derive top-5 creators by similarity to this campaign's brand.
+  // `pin_first_for: [brand.id]` creators jump to the top regardless of cosine
+  // (mirrors /admin/match — keeps the Logan x Celsius wow-moment reproducible).
   const top5 = React.useMemo(() => {
     if (!brand) return [];
     return CREATORS.map((c) => ({
@@ -120,7 +122,12 @@ export default function CampaignDetailPage({
       sim: similarity(c, brand),
       impact: computeImpact(c, brand),
     }))
-      .sort((a, b) => b.sim - a.sim)
+      .sort((a, b) => {
+        const aPinned = a.c.pin_first_for?.includes(brand.id) ? 1 : 0;
+        const bPinned = b.c.pin_first_for?.includes(brand.id) ? 1 : 0;
+        if (aPinned !== bPinned) return bPinned - aPinned;
+        return b.sim - a.sim;
+      })
       .slice(0, 5);
   }, [brand]);
 

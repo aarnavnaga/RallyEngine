@@ -44,7 +44,15 @@ function MatchInner() {
       const sim = similarity(c, brand);
       const pay = computeSuggestedPay(c, brand, impact);
       return { c, impact, sim, pay };
-    }).sort((a, b) => b.sim * 100 + b.impact.rounded - (a.sim * 100 + a.impact.rounded));
+    }).sort((a, b) => {
+      // Hand-tuned demo anchor: creators with `pin_first_for: [brand.id]` jump
+      // to #1 regardless of raw cosine + impact. Mirrors per-post `pin_for`
+      // semantics so the Logan x Celsius pitch wow-moment stays reproducible.
+      const aPinned = a.c.pin_first_for?.includes(brand.id) ? 1 : 0;
+      const bPinned = b.c.pin_first_for?.includes(brand.id) ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return b.sim * 100 + b.impact.rounded - (a.sim * 100 + a.impact.rounded);
+    });
 
     const top = all.slice(0, 14);
 

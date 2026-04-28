@@ -25,39 +25,26 @@ import {
   type Application,
 } from "@/lib/data/contracts";
 
-// ─── Brand mark helper (contract-local, no full Brand object needed) ─────────
-function ContractBrandMark({
-  label,
-  size = 28,
-}: {
-  label: string;
-  size?: number;
-}) {
-  const BRAND_COLORS: Record<string, string> = {
-    Mercor: "#7857ff",
-    Celsius: "#0e7c54",
-    "Bucked Up": "#0d1f43",
-    "Bloom Nutrition": "#1f3a3a",
-    "Mercor (Campus)": "#7857ff",
-    "Alani Nu": "#f4a8b6",
-    "Ghost Energy": "#262626",
-    "Ryse Supps": "#1c1c1c",
-  };
-  const color = BRAND_COLORS[label] ?? "#9ca3af";
-  const initial = label.replace(/[^A-Za-z]/g, "").slice(0, 1).toUpperCase();
+// ─── Row icon (matches Mercor's neutral gray briefcase glyph) ────────────────
+// Mercor's /home rows use a uniform gray briefcase icon regardless of brand —
+// not the colored letter avatars we had before. Aaron flagged this on
+// 2026-04-27 with side-by-side screenshots, so we now match 1:1.
+//
+// The icon is purely decorative: the brand label is already conveyed by the
+// row text below, so we mark it aria-hidden to avoid screen readers
+// double-announcing the brand name.
+function RowIcon() {
   return (
-    <span
-      className="inline-grid shrink-0 place-items-center rounded-[6px] font-semibold text-white"
-      style={{
-        width: size,
-        height: size,
-        background: color,
-        fontSize: Math.max(10, size * 0.45),
-      }}
-      aria-label={label}
+    <div
+      className="grid h-7 w-7 shrink-0 place-items-center rounded-[6px] bg-[var(--bg-elev)]"
+      aria-hidden="true"
     >
-      {initial}
-    </span>
+      <Briefcase
+        size={14}
+        strokeWidth={1.7}
+        className="text-[var(--fg-muted)]"
+      />
+    </div>
   );
 }
 
@@ -343,7 +330,7 @@ function ContractCard({ contract: c }: { contract: Contract }) {
       data-test-id={`home-contract-${c.id}`}
       className="flex items-center gap-3 rounded-[8px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
     >
-      <ContractBrandMark label={c.brand_label} size={28} />
+      <RowIcon />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13.5px] font-medium text-[var(--fg)]">
           {c.role}
@@ -379,7 +366,7 @@ function OfferCard({ offer: o }: { offer: Offer }) {
       className="flex items-center gap-3 rounded-[8px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
       data-test-id={`home-offer-${o.id}`}
     >
-      <ContractBrandMark label={o.brand_label} size={28} />
+      <RowIcon />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13.5px] font-medium text-[var(--fg)]">
           {o.role}
@@ -438,7 +425,7 @@ function ApplicationCard({ application: a }: { application: Application }) {
       className="flex items-center gap-3 rounded-[8px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2.5 hover:bg-[var(--bg-hover)] transition-colors"
       data-test-id={`home-application-${a.id}`}
     >
-      <ContractBrandMark label={a.brand_label} size={28} />
+      <RowIcon />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13.5px] font-medium text-[var(--fg)]">
           {a.role}

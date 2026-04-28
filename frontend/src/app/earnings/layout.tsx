@@ -3,4 +3,11 @@ import { AppShell } from "@/components/shell/AppShell";
 
 export const metadata: Metadata = { title: "Earnings" };
 
-export default function L({ children }: { children: React.ReactNode }) { return <AppShell>{children}</AppShell>; }
+// Centered max-width matches work.mercor.com/earnings 1:1 — see HomeLayout note.
+export default function L({ children }: { children: React.ReactNode }) {
+  return (
+    <AppShell>
+      <div className="mx-auto max-w-[1080px]">{children}</div>
+    </AppShell>
+  );
+}

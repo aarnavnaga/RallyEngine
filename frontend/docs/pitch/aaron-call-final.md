@@ -63,7 +63,7 @@ Every screen detail below was verified on prod 2026-04-29. **[click]** = action;
 
 **[click]** Top-right **Log in** → **"I am on the Mercor team (Aaron)"**.
 **Lands on:** `/admin`
-**You'll see:** four KPI cards across the top — `Brand-voice fit 0.872`, `Comment-relevance 43%`, `Audience overlap 0.74`, `Auto-draft queue 12`. Three charts under that — Weekly revenue trending to ~$24K last week, New creators onboarded ramping to 8/week, Comment relevance climbing toward 45%. An action-items list below.
+**You'll see:** four KPI cards across the top — `Brand-voice fit ~0.87`, `Comment-relevance ~43-44%`, `Audience overlap 0.74`, `Auto-draft queue 12`. (The first two drift slightly between visits — they tick. Audience overlap and Auto-draft are stable.) Three charts under that — Weekly revenue trending to ~$24K last week, New creators onboarded ramping to 8/week, Comment relevance climbing toward 45%. An action-items list below.
 
 > *"I'm signed in as you. Top of the page — the four KPIs that ground every payout: brand-voice fit, comment relevance, audience overlap, auto-draft queue. Weekly revenue's at about twenty-four thousand last week and ramping. Mercor's dashboard pattern, just for the brand side."*
 
@@ -112,7 +112,7 @@ Three quick-reply chips above the composer (e.g. "Confirm $1100 Rate", "Hold at 
 
 **[click]** Sidebar → **Campaigns** → click **Celsius x College Ambassadors - Spring '26**.
 **Lands on:** `/admin/campaigns/celsius-college-q2`
-**You'll see:** "LIVE PERFORMANCE" panel with five counters that tick — `15,799 Views · 802 Comments · 580 Saves · 537 Click-throughs · 256 Sales` (numbers will be larger by the time you click). Avg comment relevance: **38%**. Label below the chart: "Updates every 8-12 seconds." Pricing breakdown — formula printed: `max(base_floor, impact × 0.15) + relevant_eyes × 0.05`. Table rows for Logan ($200 + $10 + $3 = $203), Jenny Kndd ($1,500 + $12 + $7 = $1,507), Jen Selter ($1,510), Adrian Leung ($1,506), Cassey Ho ($1,515). Total (5 creators): **$6,241**.
+**You'll see:** "LIVE PERFORMANCE" panel with five counters that tick — Views, Comments, Saves, Click-throughs, Sales. The exact numbers reset on each navigation and increment every 8-12 seconds while you're on the page; don't memorize specific values, just point at them moving. Avg comment relevance: **38%** (deterministic). Label below the chart: "Updates every 8-12 seconds." Pricing breakdown — formula printed: `max(base_floor, impact × 0.15) + relevant_eyes × 0.05`. Table rows are stable: Logan ($200 + $10 + $3 = $203), Jenny Kndd ($1,500 + $12 + $7 = $1,507), Jen Selter ($1,510), Adrian Leung ($1,506), Cassey Ho ($1,515). Total (5 creators): **$6,241**.
 
 > *"Live campaign. Views tick every eight to twelve seconds. The pricing card shows the formula — base floor plus impact term plus relevant-eyes bonus — applied per creator. Logan's a small account so his line is two hundred bucks. The bigger creators on the same campaign clear fifteen hundred each. The whole point: payouts are grounded in comment relevance, not just sales. Fair to creator and brand."*
 
@@ -124,6 +124,8 @@ Three quick-reply chips above the composer (e.g. "Confirm $1100 Rate", "Hold at 
 
 ## What to do if something breaks mid-demo
 
-The most likely failure mode is **Gemini Flash Lite returning an empty bubble after 3-4 rapid messages on the haggler chat**. The server-side fallback in `/api/chat-reply` catches every non-success path and returns a brand-aware static template, so the bubble always renders. If Aaron asks why a reply sounds boilerplate, say: *"Quota throttled — that one's the static fallback, the earlier ones were the real model."*
+The most likely failure mode is **Gemini Flash Lite returning a slightly off-tone reply after 3-4 rapid messages on the haggler chat**. The server-side fallback in `/api/chat-reply` catches every non-success path (verified in round 7 — 5/5 invalid-key calls returned 200 with brand-aware fallback text) so the bubble always renders. If Aaron notices a reply sounds boilerplate, say: *"Quota throttled — that one's the static fallback, the earlier ones were the real model."*
+
+**Don't open DevTools mid-demo.** The console is noisy with `logo.clearbit.com` DNS failures (~6 errors per page). Brand logos fall through to Google favicons → letter-tile, so the visual is fine, but the console looks bad. Cosmetic only.
 
 Recovery move for any other glitch: **bottom-right corner has a `RESET ALL FOR DEMO` button**. One click resets persona, deliverables, deal state, and timers back to the seed. Use it between dry-runs, not during the live call.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   ChevronDown,
@@ -405,9 +406,12 @@ function TextareaField({
 interface ConnectionsTabProps {
   vouched: VouchedState;
   onVouch: (id: string) => void;
+  pushToast: (text: string) => void;
 }
 
-function ConnectionsTab({ vouched, onVouch }: ConnectionsTabProps) {
+function ConnectionsTab({ vouched, onVouch, pushToast }: ConnectionsTabProps) {
+  const router = useRouter();
+  const resumeInputRef = useRef<HTMLInputElement | null>(null);
   const [filter, setFilter] = useState("");
   const [topMatchOnly, setTopMatchOnly] = useState(false);
   const [openRow, setOpenRow] = useState<string | null>(null);
@@ -498,18 +502,54 @@ function ConnectionsTab({ vouched, onVouch }: ConnectionsTabProps) {
 
         {/* Bulk actions + pagination pushed right */}
         <div className="ml-auto flex items-center gap-2">
-          <button className="flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]">
+          <button
+            onClick={async () => {
+              const url = `https://musing-maxwell-84ed29.vercel.app/refer?ref=${encodeURIComponent("logan-mann")}`;
+              try {
+                await navigator.clipboard.writeText(url);
+                pushToast("Referral link copied to clipboard.");
+              } catch {
+                pushToast(`Referral link: ${url}`);
+              }
+            }}
+            className="flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]"
+          >
             Share <ChevronDown size={12} />
           </button>
-          <button className="rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]">
+          <button
+            onClick={() => router.push("/profile?tab=resume")}
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]"
+          >
             Check Resume
           </button>
-          <button className="rounded-md border border-[var(--danger)] px-3 py-1.5 text-[13px] text-[var(--danger)] hover:bg-red-50">
+          <button
+            onClick={() => {
+              if (window.confirm("Delete your uploaded resume? This cannot be undone.")) {
+                pushToast("Resume deleted. Upload a new one to keep referrals active.");
+              }
+            }}
+            className="rounded-md border border-[var(--danger)] px-3 py-1.5 text-[13px] text-[var(--danger)] hover:bg-red-50"
+          >
             Delete
           </button>
-          <button className="btn-primary text-[13px]" style={{ padding: "6px 14px" }}>
+          <button
+            onClick={() => resumeInputRef.current?.click()}
+            className="btn-primary text-[13px]"
+            style={{ padding: "6px 14px" }}
+          >
             Re-upload
           </button>
+          <input
+            ref={resumeInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) pushToast(`Uploaded ${file.name} — re-parsing now.`);
+              e.target.value = "";
+            }}
+          />
         </div>
       </div>
 
@@ -769,10 +809,28 @@ function ReferralsTab({ extraCount, pushToast }: ReferralsTabProps) {
           Track your referral earnings and progress.
         </p>
         <div className="flex items-center gap-2">
-          <button className="text-[12px] font-medium text-[var(--accent)] hover:underline">
+          <button
+            onClick={() =>
+              pushToast(
+                "What's new: Rally Intros now ranks your TikTok + IG friends against open campaigns automatically. Click Intro on any row to fire."
+              )
+            }
+            className="text-[12px] font-medium text-[var(--accent)] hover:underline"
+          >
             What&apos;s new
           </button>
-          <button className="flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]">
+          <button
+            onClick={async () => {
+              const url = `https://musing-maxwell-84ed29.vercel.app/refer?ref=${encodeURIComponent("logan-mann")}`;
+              try {
+                await navigator.clipboard.writeText(url);
+                pushToast("Referral link copied to clipboard.");
+              } catch {
+                pushToast(`Referral link: ${url}`);
+              }
+            }}
+            className="flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]"
+          >
             Share <ChevronDown size={12} />
           </button>
           <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
@@ -997,7 +1055,7 @@ export default function ReferralsPage() {
         </div>
 
         {tab === "connections" ? (
-          <ConnectionsTab vouched={vouched} onVouch={handleVouchStart} />
+          <ConnectionsTab vouched={vouched} onVouch={handleVouchStart} pushToast={showToast} />
         ) : (
           <ReferralsTab extraCount={newVouchCount} pushToast={showToast} />
         )}

@@ -16,12 +16,26 @@ test.describe("Aaron Langerman flow — production smoke", () => {
       }
     });
 
+    // Round-12 H2: capture per-stage wall-clock so a future regression that
+    // adds latency to one of the stages gets flagged. Soft thresholds — each
+    // stage <2s, total <6s. CI ran ~3.5s total in round 11; 2s/6s leaves
+    // generous headroom for runner variance without letting a real slowdown
+    // through.
+    const timings: { label: string; ms: number }[] = [];
+    let stageStart = Date.now();
+    const stage = (label: string) => {
+      const ms = Date.now() - stageStart;
+      timings.push({ label, ms });
+      stageStart = Date.now();
+    };
+
     // Stage 1 — landing → sign in as Aaron. Two "Log in" buttons exist
     // (top nav + hero CTA dropdown), pick the first.
     await page.goto(`${BASE}/`);
     await page.locator('[data-test-id="landing-nav-login"]').first().click();
     await page.locator('[data-test-id="landing-nav-login-admin"]').first().click();
     await expect(page).toHaveURL(/\/admin$/);
+    stage("1. landing → /admin");
 
     // A2 verification: sidebar contains Match item.
     const matchLink = page.locator('aside a[href="/admin/match"]');
@@ -33,6 +47,7 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     await expect(page).toHaveURL(/\/admin\/match$/);
     const loganRow = page.locator('[data-test-id="match-row-loganmann32"]');
     await expect(loganRow).toBeVisible();
+    stage("2. /admin → /admin/match (Logan row visible)");
     const loganRowText = await loganRow.innerText();
     // Verify rank #1 and the deterministic Logan/Celsius numbers. The row
     // begins with a checkbox bullet column, so "1." appears on a line of
@@ -53,6 +68,8 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     // Stage 5 — type $700? in the composer and wait for a non-empty reply.
     const composer = page.locator('[data-test-id="outreach-composer"]');
     await expect(composer).toBeVisible();
+    stage("3. /admin/match → /admin/outreach (composer visible)");
+
     await composer.fill("");
     await composer.fill("$700?");
     await composer.press("Enter");
@@ -79,11 +96,28 @@ test.describe("Aaron Langerman flow — production smoke", () => {
       null,
       { timeout: 12_000 },
     );
+    stage("4. $700? send → counterparty reply visible");
 
     // Stage 6 — campaign live perf label.
     await page.goto(`${BASE}/admin/campaigns/celsius-college-q2`);
     const tickLabel = page.getByText(/Updates every 8-12 seconds/);
     await expect(tickLabel).toBeVisible({ timeout: 5_000 });
+    stage("5. /admin/outreach → /admin/campaigns/celsius-college-q2");
+
+    // H2 thresholds. Stage budgets:
+    //   - non-Gemini stages: <2s each (G5 measured every navigation under 1s)
+    //   - Gemini reply stage (4): <5s (upstream legitimately takes 1-3s, plus
+    //     send animation; the 12s waitForFunction above is the hard cap)
+    //   - total: <8s (G5 cold-start total was 3.5s; 8s leaves runner headroom)
+    const total = timings.reduce((sum, t) => sum + t.ms, 0);
+    console.log("Stage timings:");
+    for (const t of timings) console.log(`  ${t.label}: ${t.ms}ms`);
+    console.log(`  TOTAL: ${total}ms`);
+    for (const t of timings) {
+      const cap = t.label.startsWith("4. $700?") ? 5_000 : 2_000;
+      expect(t.ms, `stage "${t.label}" exceeded ${cap}ms budget`).toBeLessThan(cap);
+    }
+    expect(total, "total flow exceeded 8s budget").toBeLessThan(8_000);
 
     // Console error gate: only allow benign clearbit/google favicon DNS
     // errors. After D2 (drop clearbit) we expect 0; google favicon may

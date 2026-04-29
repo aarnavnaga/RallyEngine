@@ -20,7 +20,6 @@ import {
   Sparkles,
   Inbox,
   TrendingUp,
-  ShieldCheck,
 } from "lucide-react";
 import { NotificationsDropdown } from "@/components/shell/NotificationsDropdown";
 import { CookieConsentButton } from "@/components/shell/CookieConsent";
@@ -55,19 +54,11 @@ const CREATOR_ITEMS: Item[] = [
 // have one entry point. The /admin/creators route stays accessible by direct
 // URL (deep links from older threads still resolve) but is no longer
 // surfaced in the rail.
-// /admin/verification is the new mod queue surfacing the 4-step verification
-// ladder for recently-attempted-onboarding creators. Sits before Match in the
-// rail so admins audit identity before they wire experts to brands. BETA pill
-// per Logan 2026-04-29 — copy is stubbed pending live data hookup.
+// Verification ladder lives inline in /admin/match's expanded row (per W2)
+// — no separate sidebar entry needed. Logan confirmed 2026-04-29 the row-level
+// surface is enough; a standalone tab fragmented the workflow.
 const ADMIN_ITEMS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  {
-    href: "/admin/verification",
-    label: "Verification",
-    icon: ShieldCheck,
-    betaPill: true,
-    testId: "sidebar-admin-verification",
-  },
   { href: "/admin/match", label: "Match", icon: Sparkles },
   { href: "/admin/outreach", label: "Inbox", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: TrendingUp },

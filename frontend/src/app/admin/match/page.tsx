@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronUp, ExternalLink, Sparkles } from "lucide-react";
@@ -114,21 +114,11 @@ function MatchInner() {
       {/* Brand selector */}
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-4">
-          <label className="label-cap" htmlFor="match-brand-select">Brand</label>
-          <select
-            id="match-brand-select"
-            value={brandId}
-            onChange={(e) => setBrandId(e.target.value)}
-            className="mt-2 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[13px]"
-            data-test-id="match-brand-select"
-            aria-label="Brand"
-          >
-            {BRANDS.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name} · {b.category}
-              </option>
-            ))}
-          </select>
+          <div className="label-cap">Brand</div>
+          <BrandPicker
+            brand={brand}
+            onSelect={(id) => setBrandId(id)}
+          />
           <BrandSummary brand={brand} />
         </aside>
 
@@ -319,6 +309,123 @@ function BeforeComposite({
       <div className="mt-3 text-[11px] italic text-[var(--fg-subtle)]">
         Switch to After to see the same brief ranked, scored, and cited.
       </div>
+    </div>
+  );
+}
+
+/**
+ * Logo-anchored brand picker. Replaces the native <select> so the popover
+ * can render each brand's BrandMark + category badge inline. Anchored at the
+ * brand-summary aside; same width as the parent column.
+ *
+ * Outside-click closes the popover (mirror of LoginDropdown in src/app/page.tsx).
+ * Categories are grouped with a small uppercase divider between groups.
+ */
+function BrandPicker({
+  brand,
+  onSelect,
+}: {
+  brand: Brand;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  // Group brands by category, preserving the source ordering inside each group
+  // and the first-seen order across groups so "energy" still leads.
+  const grouped = useMemo(() => {
+    const order: Brand["category"][] = [];
+    const map = new Map<Brand["category"], Brand[]>();
+    for (const b of BRANDS) {
+      if (!map.has(b.category)) {
+        order.push(b.category);
+        map.set(b.category, []);
+      }
+      map.get(b.category)!.push(b);
+    }
+    return order.map((cat) => ({ category: cat, brands: map.get(cat)! }));
+  }, []);
+
+  return (
+    <div ref={wrapperRef} className="relative mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        data-test-id="match-brand-select"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Brand"
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left text-[13px] hover:bg-[var(--bg-hover)]"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <BrandMark brand={brand} size={22} />
+          <span className="min-w-0 truncate font-medium text-[var(--fg)]">
+            {brand.name}
+          </span>
+          <span className="pill text-[9px] uppercase tracking-[0.06em]">
+            {brand.category}
+          </span>
+        </span>
+        <ChevronDown size={14} className="flex-shrink-0 text-[var(--fg-muted)]" />
+      </button>
+
+      {open ? (
+        <div
+          className="absolute left-0 top-full z-40 mt-1 max-h-[360px] w-full min-w-[260px] overflow-y-auto rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-1 shadow-[var(--shadow-modal)]"
+          role="listbox"
+          aria-label="Brand"
+        >
+          {grouped.map(({ category, brands }) => (
+            <div key={category}>
+              <div className="px-2 pb-0.5 pt-2 text-[10px] uppercase tracking-wide text-[var(--fg-subtle)]">
+                {category}
+              </div>
+              {brands.map((b) => {
+                const active = b.id === brand.id;
+                return (
+                  <button
+                    type="button"
+                    key={b.id}
+                    role="option"
+                    aria-selected={active}
+                    data-test-id={`match-brand-option-${b.id}`}
+                    onClick={() => {
+                      onSelect(b.id);
+                      setOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left transition-colors ${
+                      active
+                        ? "bg-[var(--accent-soft)] text-[var(--accent-on-soft)]"
+                        : "text-[var(--fg)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <BrandMark brand={b} size={18} />
+                      <span className="min-w-0 truncate text-[13px] font-medium">
+                        {b.name}
+                      </span>
+                    </span>
+                    <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--fg-subtle)]">
+                      {b.category}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -516,6 +623,12 @@ function computeBench(creator: Creator, impact: ImpactBreakdown) {
   return { postsPulled, postsPassed, slopDropped, velocity, nichePctile };
 }
 
+/**
+ * Live performance bench — collapsed-by-default disclosure. Renders a thin
+ * one-line summary strip that opens to the full 4-tile grid on click. The
+ * full grid is important for credibility but not for the first scan, so it
+ * stays out of the way of the trust + ROI strip above.
+ */
 function LivePerformanceBench({
   creator,
   brand,
@@ -530,61 +643,72 @@ function LivePerformanceBench({
   // data inside a "use client" component.
   const bench = useMemo(() => computeBench(creator, impact), [creator, impact]);
   return (
-    <div
+    <details
       data-test-id="live-performance-bench"
-      className="mx-5 mt-5 rounded-[12px] border border-[var(--accent)] bg-[var(--accent-soft)] p-4"
+      className="group rounded-[10px] border border-[var(--accent)] bg-[var(--accent-soft)]"
     >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2">
-          {/* Pulse dot — purely decorative; the heading text below carries
-              the meaning, so we hide the dot from the a11y tree. */}
+      <summary
+        data-test-id="match-bench-toggle"
+        className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[11px]"
+      >
+        <span className="flex items-center gap-2">
           <span className="relative inline-flex h-2 w-2" aria-hidden="true">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-on-soft)]">
-            Live performance bench
+          <span className="font-semibold uppercase tracking-[0.06em] text-[var(--accent-on-soft)]">
+            Live bench
           </span>
-          {/* Truthful framing: the scraper runs on a daily cron, not a
-              minute-by-minute live tail. Wording is intentionally
-              non-falsifiable in the room. */}
-          <span className="text-[11px] text-[var(--fg-muted)]">
-            · last scraped today
+          <span className="tabular-nums text-[var(--fg)]">
+            {bench.postsPassed}/{bench.postsPulled} passed
           </span>
-        </div>
-        <span className="text-[11px] italic text-[var(--fg-muted)]">
-          Pay-for-proof: payout is tied to scraped performance, not posts shipped or video length.
+          <span className="text-[var(--fg-muted)]">·</span>
+          <span className="tabular-nums text-[var(--fg)]">
+            velocity {bench.velocity.toFixed(2)}
+          </span>
+          <span className="text-[var(--fg-muted)]">·</span>
+          <span className="tabular-nums text-[var(--fg)]">
+            {bench.nichePctile}th-pct {brand.category}
+          </span>
         </span>
+        <span className="flex items-center gap-1 text-[var(--fg-muted)]">
+          <span>View 4 stats</span>
+          <ChevronDown
+            size={12}
+            className="transition-transform group-open:rotate-180"
+          />
+        </span>
+      </summary>
+      <div className="border-t border-[var(--accent)] px-3 py-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <BenchStat
+            label="Posts pulled"
+            value={String(bench.postsPulled)}
+            caption={`from ${creator.handle ?? `@${creator.id}`}`}
+          />
+          <BenchStat
+            label="Passed quality filter"
+            value={String(bench.postsPassed)}
+            caption={`${bench.slopDropped} dropped (low-signal)`}
+            tone="positive"
+          />
+          <BenchStat
+            label="Engagement velocity"
+            value={bench.velocity.toFixed(2)}
+            caption={`${bench.nichePctile}th-pct of ${brand.category} niche`}
+          />
+          <BenchStat
+            label="Niche percentile"
+            value={`${bench.nichePctile}th`}
+            caption={`${brand.category} creators with this velocity`}
+          />
+        </div>
+        <div className="mt-2 text-[10.5px] italic text-[var(--fg-muted)]">
+          Pay-for-proof: payout is tied to scraped performance, not posts
+          shipped or video length. Last scraped today.
+        </div>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <BenchStat
-          label="Posts pulled"
-          value={String(bench.postsPulled)}
-          caption={`from ${creator.handle ?? `@${creator.id}`}`}
-        />
-        <BenchStat
-          label="Passed slop filter"
-          value={String(bench.postsPassed)}
-          caption={`${bench.slopDropped} dropped (low-signal)`}
-          tone="positive"
-        />
-        <BenchStat
-          label="Engagement velocity"
-          value={bench.velocity.toFixed(2)}
-          caption={`${bench.nichePctile}th-pct of ${brand.category} niche`}
-        />
-        {/* 4th tile is niche percentile, not a duplicate of "Passed slop
-            filter". The earlier "Feeds Impact: passed/pulled" tile was
-            visually redundant with the slop-filter card, so it was
-            replaced with a distinct signal: how this creator ranks against
-            others in their niche. */}
-        <BenchStat
-          label="Niche percentile"
-          value={`${bench.nichePctile}th`}
-          caption={`${brand.category} creators with this velocity`}
-        />
-      </div>
-    </div>
+    </details>
   );
 }
 
@@ -617,6 +741,25 @@ function BenchStat({
   );
 }
 
+/**
+ * Truncate a long URL for display by keeping the host + last path segment
+ * and eliding the middle. Example:
+ *   https://www.tiktok.com/@loganmann32/video/7415263872910394539
+ *   → tiktok.com/…/7415263872910394539
+ */
+function truncateUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.host.replace(/^www\./, "");
+    const segments = u.pathname.split("/").filter(Boolean);
+    if (segments.length === 0) return host;
+    const last = segments[segments.length - 1];
+    return segments.length > 1 ? `${host}/…/${last}` : `${host}/${last}`;
+  } catch {
+    return url.length > 48 ? `${url.slice(0, 24)}…${url.slice(-20)}` : url;
+  }
+}
+
 function DetailPane({
   creator,
   brand,
@@ -629,316 +772,318 @@ function DetailPane({
   pay: ReturnType<typeof computeSuggestedPay>;
 }) {
   const citations = buildCitations(creator, brand);
-  const tagOverlap = creator.niche_tags.filter((t) =>
-    brand.ad_themes.some((th) => th.toLowerCase().includes(t.toLowerCase())) ||
-    brand.target_personas.some((p) => p.toLowerCase().includes(t.toLowerCase())),
-  );
+  // Cap visible cites to 2; surface the rest via a muted footer link so the
+  // pane fits a 1080p viewport without inner scroll.
+  const visibleCites = citations.slice(0, 2);
+  const extraCites = Math.max(0, citations.length - visibleCites.length);
 
-  // Niche-claim verification — top 3 niche tags are treated as
-  // "scraped-confirmed" against the last-30-posts corpus; the rest are
-  // "claimed only" until a post sample comes in. Honest framing keeps
-  // Aaron's "actual difficulty" critique satisfied.
+  // Niche-tag overlap with the brand's themes/personas. Tags that scraped
+  // posts confirmed get a subtle ✓ glyph inline; folded into the chip
+  // cluster so we drop the separate self-declared vs scraped block.
+  const tagOverlap = new Set(
+    creator.niche_tags.filter(
+      (t) =>
+        brand.ad_themes.some((th) => th.toLowerCase().includes(t.toLowerCase())) ||
+        brand.target_personas.some((p) =>
+          p.toLowerCase().includes(t.toLowerCase()),
+        ),
+    ),
+  );
   const scrapedConfirmed = new Set(creator.niche_tags.slice(0, 3));
+
   // Verification ladder — honest gating: top creators (impact >= 75) clear
   // step 3 cleanly; lower-impact rows surface a soft warn so this never
   // reads as theater.
   const nicheLadderOk = impact.composite >= 75;
+
+  // ROI heuristic mirrors the row-level pill so the detail tile and the
+  // table cell read the same value.
+  const roiPct = Math.round((impact.composite / 100) * 4 * 100);
+
+  // Geo overlap chip — collapse the prose paragraph to a single chip.
+  const geoOverlap = brand.target_geo.some((g) =>
+    creator.geo_match_targets.some((c) =>
+      c.toLowerCase().includes(g.toLowerCase()),
+    ),
+  );
+  const geoChip = geoOverlap
+    ? `${creator.geo_match_targets.slice(0, 3).join(" / ")} · matches ${brand.name} geo`
+    : `${creator.geo_match_targets.slice(0, 3).join(" / ")} · niche fit only`;
+
+  const ladder = [
+    {
+      icon: "✓" as const,
+      tone: "ok" as const,
+      label: "Handle",
+      evidence: `${creator.handle} resolves live`,
+    },
+    {
+      icon: "✓" as const,
+      tone: "ok" as const,
+      label: "Fingerprint",
+      evidence: "last 30 posts consistent",
+    },
+    {
+      icon: nicheLadderOk ? ("✓" as const) : ("⚠" as const),
+      tone: nicheLadderOk ? ("ok" as const) : ("warn" as const),
+      label: "Niche claim",
+      evidence: nicheLadderOk
+        ? `${creator.niche_tags[0] ?? "—"} matches scraped`
+        : `${creator.niche_tags[0] ?? "—"} weak overlap`,
+    },
+    {
+      icon: "—" as const,
+      tone: "muted" as const,
+      label: "Audience truth",
+      evidence: "manual review for v1",
+    },
+  ];
+
   return (
-    <div>
-      <LivePerformanceBench creator={creator} brand={brand} impact={impact} />
-      <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-3">
-      {/* Left: RAG rationale citing posts BY URL - the demo's wow */}
-      <div className="lg:col-span-2">
-        {/* 4-step verification ladder — sits above the RAG rationale so
-            "creator-claim verification" reads as core, not optional. The
-            badge in the row links here. */}
-        <div className="mb-5 rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3">
+    <div className="space-y-3 p-5">
+      {/* Row 1 — Trust + ROI strip. Verification ladder rendered as 4
+          horizontal steps so it scans in one line; ROI + Day-1 revenue
+          stack on the right. */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3 lg:col-span-2">
           <div className="label-cap">Verification ladder</div>
-          <ol className="mt-2 space-y-1.5 text-[12px]">
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 text-emerald-600">✓</span>
-              <span>
-                <span className="font-medium text-[var(--fg)]">
-                  Handle ownership
-                </span>{" "}
-                <span className="text-[var(--fg-muted)]">
-                  — {creator.handle} resolves to live profile.
-                </span>
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 text-emerald-600">✓</span>
-              <span>
-                <span className="font-medium text-[var(--fg)]">
-                  Fingerprint
-                </span>{" "}
-                <span className="text-[var(--fg-muted)]">
-                  — last 30 posts consistent caption style + cadence.
-                </span>
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span
-                className={`mt-0.5 ${nicheLadderOk ? "text-emerald-600" : "text-amber-600"}`}
-              >
-                {nicheLadderOk ? "✓" : "⚠"}
-              </span>
-              <span>
-                <span className="font-medium text-[var(--fg)]">
-                  Niche claim
-                </span>{" "}
-                <span className="text-[var(--fg-muted)]">
-                  — self-declared{" "}
-                  <span className="font-mono text-[11px]">
-                    {creator.niche_tags[0] ?? "n/a"}
-                  </span>{" "}
-                  {nicheLadderOk
-                    ? "matches scraped post content."
-                    : "weak overlap with scraped content; gated for manual review."}
-                </span>
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 text-[var(--fg-muted)]">○</span>
-              <span>
-                <span className="font-medium text-[var(--fg)]">
-                  Audience truth
-                </span>{" "}
-                <span className="text-[var(--fg-muted)]">
-                  — sampled audience demographics check (manual review for
-                  v1).
-                </span>
-              </span>
-            </li>
+          <ol className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+            {ladder.map((step, idx) => {
+              const iconColor =
+                step.tone === "ok"
+                  ? "text-emerald-600"
+                  : step.tone === "warn"
+                    ? "text-amber-600"
+                    : "text-[var(--fg-muted)]";
+              return (
+                <li
+                  key={step.label}
+                  className="flex items-start gap-1.5 rounded-[8px] bg-[var(--bg-elev)] px-2 py-1.5"
+                >
+                  <span className={`mt-[1px] text-[12px] ${iconColor}`}>
+                    {step.icon}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-medium text-[var(--fg)]">
+                      Step {idx + 1} · {step.label}
+                    </span>
+                    <span className="block truncate text-[10.5px] text-[var(--fg-muted)]">
+                      {step.evidence}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
           </ol>
         </div>
-
-        {/* Niche-claim verification — two-column self-declared vs scraped
-            split. Sits above RAG rationale because the cited posts below
-            are the evidence the right column points at. */}
-        <div
-          className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2"
-          data-test-id="match-niche-verification"
-        >
-          <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3">
-            <div className="label-cap">Self-declared niche</div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {creator.niche_tags.map((t) => (
-                <span key={t} className="pill text-[11px]">
-                  {t}
-                </span>
-              ))}
+        <div className="flex flex-col gap-2">
+          <div
+            className="rounded-[10px] border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2"
+            title="Predicted relevant-views per dollar spent vs follower-baseline. Trains on closed campaigns."
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-on-soft)]">
+              Predicted ROI
             </div>
-            <div className="mt-2 text-[10.5px] italic text-[var(--fg-subtle)]">
-              From {creator.handle} bio + AI-interview answers.
+            <div className="mt-0.5 text-[20px] font-semibold tabular-nums text-[var(--accent-on-soft)]">
+              +{roiPct}%
+            </div>
+            <div className="text-[10px] text-[var(--fg-muted)]">
+              vs follower-baseline · trains on closed campaigns
             </div>
           </div>
+          <Day1RevenueStrip creator={creator} pay={pay} />
+        </div>
+      </div>
+
+      {/* Bench disclosure — collapsed-by-default thin strip; opens to the
+          4-tile grid for credibility on demand. */}
+      <LivePerformanceBench creator={creator} brand={brand} impact={impact} />
+
+      {/* Row 2 — Evidence + Math. 5-col grid: cited posts (2) +
+          impact/pay merged table (2) + niche+geo chip cluster (1). */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+        {/* Col 1: RAG rationale, max 2 cited posts, condensed. */}
+        <div className="lg:col-span-2">
+          <div className="flex items-center gap-2">
+            <span className="label-cap">Cited posts</span>
+            <ClaudeMark model="sonnet" size="xs" />
+          </div>
+          {visibleCites.length > 0 ? (
+            <ul className="mt-2 space-y-2">
+              {visibleCites.map((cite) => (
+                <li
+                  key={cite.cited_post_url}
+                  className="rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2"
+                >
+                  <a
+                    href={cite.cited_post_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 truncate font-mono text-[11px] text-[var(--accent)] hover:underline"
+                    data-test-id="match-cited-url"
+                    title={cite.cited_post_url}
+                  >
+                    {truncateUrl(cite.cited_post_url)}
+                    <ExternalLink size={11} className="flex-shrink-0" />
+                  </a>
+                  <div className="mt-1 text-[11.5px] leading-snug text-[var(--fg)]">
+                    {cite.reason}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-[11.5px] text-[var(--fg-muted)]">
+              No cited TikTok posts indexed yet. Rank is from niche-tag and
+              persona overlap with the brand brief.
+            </p>
+          )}
+          {extraCites > 0 ? (
+            <div className="mt-1.5 text-[10.5px] text-[var(--fg-subtle)]">
+              + {extraCites} more post{extraCites === 1 ? "" : "s"} cited
+            </div>
+          ) : null}
+          <Link
+            href={`/admin/interviews/${creator.id}`}
+            data-test-id={`match-view-interview-${creator.id}`}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:bg-[var(--bg-hover)]"
+          >
+            View AI interview →
+          </Link>
+        </div>
+
+        {/* Col 2: merged impact + pay table. Headline numbers always
+            visible; full breakdown gated behind a <details> toggle so the
+            pane fits a 1080p viewport. */}
+        <div className="lg:col-span-2">
           <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3">
-            <div className="label-cap">Scraped from last 30 posts</div>
-            <div className="mt-2 flex flex-wrap gap-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="label-cap">Impact</div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[18px] font-semibold tabular-nums text-[var(--fg)]">
+                    {impact.composite.toFixed(1)}
+                  </span>
+                  <span className="pill pill-accent text-[11px] font-semibold tabular-nums">
+                    {impact.rounded}
+                  </span>
+                </div>
+                <div className="text-[10.5px] text-[var(--fg-muted)]">
+                  composite · score
+                </div>
+              </div>
+              <div>
+                <div className="label-cap">Pay</div>
+                <div className="mt-1 text-[18px] font-semibold tabular-nums text-[var(--fg)]">
+                  {fmtCurrency(pay.recommended)}
+                </div>
+                <div className="text-[10.5px] tabular-nums text-[var(--fg-muted)]">
+                  {fmtCurrency(pay.total_low)} – {fmtCurrency(pay.total_high)}
+                </div>
+              </div>
+            </div>
+            <details className="group mt-2">
+              <summary className="cursor-pointer list-none text-[10.5px] uppercase tracking-[0.06em] text-[var(--fg-subtle)] hover:text-[var(--fg-muted)]">
+                <span className="inline-flex items-center gap-1">
+                  Show breakdown
+                  <ChevronDown
+                    size={11}
+                    className="transition-transform group-open:rotate-180"
+                  />
+                </span>
+              </summary>
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <table className="w-full text-[11.5px]">
+                  <tbody>
+                    <BreakdownRow
+                      label="Followers"
+                      formula="√(followers) / 100"
+                      value={impact.followers_factor.toFixed(2)}
+                    />
+                    <BreakdownRow
+                      label="Niche"
+                      value={impact.niche_relevance.toFixed(2)}
+                    />
+                    <BreakdownRow
+                      label="Cadence"
+                      formula="posts / wk"
+                      value={impact.cadence.toFixed(1)}
+                    />
+                    <BreakdownRow
+                      label="Engagement"
+                      formula="log₁₀(med + 1)"
+                      value={impact.interactions.toFixed(2)}
+                    />
+                    <BreakdownRow
+                      label="Authenticity"
+                      value={impact.authenticity.toFixed(2)}
+                    />
+                    <BreakdownRow
+                      label="Geo match"
+                      value={impact.geo_match.toFixed(2)}
+                    />
+                  </tbody>
+                </table>
+                <table className="w-full text-[11.5px]">
+                  <tbody>
+                    <BreakdownRow
+                      label="Base floor"
+                      formula="follower-tier min"
+                      value={fmtCurrency(pay.base_floor)}
+                    />
+                    <BreakdownRow
+                      label="Impact term"
+                      formula="impact × $0.15"
+                      value={fmtCurrency(pay.impact_term)}
+                    />
+                    <BreakdownRow
+                      label="Relevant-eyes"
+                      formula="rel_views × $0.05"
+                      value={fmtCurrency(pay.relevant_eyes_bonus)}
+                    />
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        {/* Col 3: niche + geo chip cluster. Scraped-confirmed tags get a
+            subtle ✓ glyph inline; brand-overlap tags get the success
+            tint. Geo collapsed to a single chip. */}
+        <div className="lg:col-span-1">
+          <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3">
+            <div className="label-cap">Niche · {brand.name}</div>
+            <div className="mt-1.5 flex flex-wrap gap-1">
               {creator.niche_tags.map((t) => {
+                const overlap = tagOverlap.has(t);
                 const confirmed = scrapedConfirmed.has(t);
                 return (
                   <span
                     key={t}
-                    className={`pill text-[11px] ${confirmed ? "pill-success" : ""}`}
-                    title={confirmed ? "Confirmed in scraped posts" : "Claimed only — not yet seen in scraped posts"}
+                    className={`pill text-[10.5px] ${overlap ? "pill-success" : ""}`}
+                    title={
+                      confirmed
+                        ? "Confirmed in scraped posts"
+                        : "Self-declared (not yet seen in scraped corpus)"
+                    }
                   >
                     {confirmed ? `✓ ${t}` : t}
                   </span>
                 );
               })}
             </div>
-            <div className="mt-2 text-[10.5px] italic text-[var(--fg-subtle)]">
-              ✓ tags appear in the cited-post corpus below.
+            <div className="mt-2.5 label-cap">Geo</div>
+            <div className="mt-1.5">
+              <span
+                className={`pill text-[10.5px] ${geoOverlap ? "pill-success" : ""}`}
+              >
+                {geoChip}
+              </span>
             </div>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <span className="label-cap">RAG rationale - cited posts</span>
-          <ClaudeMark model="sonnet" size="xs" />
-        </div>
-        {citations.length > 0 ? (
-          <ul className="mt-2 space-y-3">
-            {citations.map((cite) => (
-              <li
-                key={cite.cited_post_url}
-                className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3"
-              >
-                <div className="text-[13px]">{cite.reason}</div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <a
-                    href={cite.cited_post_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 break-all text-[11px] font-mono text-[var(--accent)] hover:underline"
-                    data-test-id="match-cited-url"
-                  >
-                    {cite.cited_post_url}
-                    <ExternalLink size={11} />
-                  </a>
-                </div>
-                <div className="mt-2 text-[11px] text-[var(--fg-muted)]">
-                  &ldquo;{cite.caption}&rdquo;
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {cite.hashtags.map((h) => (
-                    <span key={h} className="pill text-[10px]">
-                      {h}
-                    </span>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-[12px] text-[var(--fg-muted)]">
-            No cited TikTok posts indexed for this creator yet. Rank is from niche-tag and persona overlap with the
-            brand brief.
-          </p>
-        )}
-
-        <div className="mt-5">
-          <div className="label-cap">Niche-tag overlap with {brand.name}</div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {creator.niche_tags.map((t) => (
-              <span
-                key={t}
-                className={`pill text-[11px] ${tagOverlap.includes(t) ? "pill-success" : ""}`}
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <div className="label-cap">Geo evidence</div>
-          <div className="mt-2 text-[12px] text-[var(--fg-muted)]">
-            Creator is anchored in <span className="text-[var(--fg)] font-medium">{creator.geo_match_targets.join(", ")}</span>.
-            {brand.target_geo.some((g) => creator.geo_match_targets.some((c) => c.toLowerCase().includes(g.toLowerCase()))) ? (
-              <>
-                {" "}Matches one of {brand.name}&apos;s target geos:{" "}
-                <span className="text-[var(--fg)] font-medium">{brand.target_geo.join(", ")}</span>.
-              </>
-            ) : (
-              <>
-                {" "}{brand.name}&apos;s target geos:{" "}
-                <span className="text-[var(--fg)] font-medium">{brand.target_geo.join(", ")}</span>. No direct overlap; ranks on
-                niche fit alone.
-              </>
-            )}
-          </div>
-        </div>
       </div>
-
-      {/* Right: impact breakdown + pay breakdown */}
-      <div>
-        <div className="label-cap">Impact score breakdown</div>
-        <table className="mt-3 w-full text-[12px]">
-          <tbody>
-            <BreakdownRow
-              label="Followers factor"
-              formula="√(followers) / 100"
-              value={impact.followers_factor.toFixed(2)}
-            />
-            <BreakdownRow
-              label="Niche relevance"
-              value={impact.niche_relevance.toFixed(2)}
-            />
-            <BreakdownRow
-              label="Posting cadence"
-              formula="posts / week"
-              value={impact.cadence.toFixed(1)}
-            />
-            <BreakdownRow
-              label="Engagement"
-              formula="log₁₀(median interactions + 1)"
-              value={impact.interactions.toFixed(2)}
-            />
-            <BreakdownRow
-              label="Authenticity"
-              value={impact.authenticity.toFixed(2)}
-            />
-            <BreakdownRow
-              label="Geo match"
-              value={impact.geo_match.toFixed(2)}
-            />
-            <tr className="border-t border-[var(--border)]">
-              <td className="pt-2.5 pb-1.5 text-[12px] text-[var(--fg-muted)]">
-                Composite
-              </td>
-              <td className="pt-2.5 pb-1.5 text-right text-[13px] font-medium tabular-nums text-[var(--fg)]">
-                {impact.composite.toFixed(2)}
-              </td>
-            </tr>
-            <tr>
-              <td className="py-1.5 text-[12px] font-semibold text-[var(--fg)]">
-                Score
-              </td>
-              <td className="py-1.5 text-right">
-                <span className="pill pill-accent text-[11px] font-semibold tabular-nums">
-                  {impact.rounded}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <Link
-          href={`/admin/interviews/${creator.id}`}
-          data-test-id={`match-view-interview-${creator.id}`}
-          className="mt-5 inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-medium text-[var(--fg)] hover:bg-[var(--bg-hover)]"
-        >
-          View AI interview →
-        </Link>
-
-        <div className="mt-5 label-cap">Suggested pay breakdown</div>
-        <table className="mt-3 w-full text-[12px]">
-          <tbody>
-            <BreakdownRow
-              label="Base floor"
-              formula="follower-tier minimum"
-              value={fmtCurrency(pay.base_floor)}
-            />
-            <BreakdownRow
-              label="Impact term"
-              formula="impact × $0.15"
-              value={fmtCurrency(pay.impact_term)}
-            />
-            <BreakdownRow
-              label="Relevant-eyes bonus"
-              formula="relevant_views × $0.05"
-              value={fmtCurrency(pay.relevant_eyes_bonus)}
-            />
-            <tr className="border-t border-[var(--border)]">
-              <td className="pt-2.5 pb-1.5 text-[13px] font-semibold text-[var(--fg)]">
-                Recommended
-              </td>
-              <td className="pt-2.5 pb-1.5 text-right text-[13px] font-semibold tabular-nums text-[var(--fg)]">
-                {fmtCurrency(pay.recommended)}
-              </td>
-            </tr>
-            <tr>
-              <td className="py-1.5 text-[12px] text-[var(--fg-muted)]">
-                Range
-              </td>
-              <td className="py-1.5 text-right text-[11px] text-[var(--fg-muted)] tabular-nums">
-                {fmtCurrency(pay.total_low)} – {fmtCurrency(pay.total_high)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Day-1 revenue strip — answers Aaron's "ROI evaluation" lens.
-            Logan x Celsius is the canonical pin-and-show case so the
-            placement number comes from source-of-truth; every other row
-            uses PLACEMENT_FEE_PCT × recommended so no dollar figure is
-            ever hardcoded. */}
-        <Day1RevenueStrip creator={creator} pay={pay} />
-      </div>
-    </div>
     </div>
   );
 }

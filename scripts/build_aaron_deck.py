@@ -321,9 +321,10 @@ def slide_why_now(prs, total):
         ),
         (
             "02",
-            "Surface signals are getting noisier.",
+            "AI slop has flooded the feed.",
             "Only 26% of consumers prefer AI-generated creator content today, "
-            "down from 60% in 2023 (Billion Dollar Boy Muse Two, 2025-11-20).",
+            "down from 60% in 2023 (Billion Dollar Boy Muse Two, 2025-11-20). "
+            "Brands need a way to filter slop from real signal.",
         ),
         (
             "03",

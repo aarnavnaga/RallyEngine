@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { MercorFooter } from "./MercorFooter";
-import { useDemoTicker } from "./ToastContainer";
 import { ResetDemoButton } from "./ResetDemoButton";
 import { useUser } from "@/lib/state/user";
 
@@ -20,7 +19,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (hydrated && !identity) router.replace("/");
   }, [hydrated, identity, router]);
 
-  useDemoTicker(!!identity, identity?.persona ?? null);
+  // Demo ticker (pop-up toasts) intentionally disabled for the live demo —
+  // the floating notifications were distracting Aaron during the walkthrough.
 
   if (!hydrated) {
     return (

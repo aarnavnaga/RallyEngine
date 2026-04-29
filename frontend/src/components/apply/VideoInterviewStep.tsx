@@ -77,7 +77,14 @@ interface ISpeechRecognition extends EventTarget {
   stop(): void;
   abort(): void;
   onresult:
-    | ((event: { results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void)
+    | ((event: {
+        results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
+        // resultIndex points to the index of the FIRST result in `results`
+        // that's new since the previous fire. Without this, iterating from 0
+        // re-processes already-finalized results on every event, causing
+        // exponential duplication ("I made a real on I made a real on…").
+        resultIndex: number;
+      }) => void)
     | null;
   onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
@@ -639,20 +646,33 @@ export function VideoInterviewStep({
     rec.interimResults = true;
     rec.lang = "en-US";
     rec.onresult = (event) => {
+      // Iterate from event.resultIndex, NOT 0. event.results is the
+      // cumulative result list since recognition started; if we restart at
+      // 0 every fire, every already-finalized chunk gets appended to
+      // finalAnswerRef again on each subsequent fire — producing the
+      // "I made a real on I made a real on …" cascade we hit on Q1.
+      // The first fire usually has resultIndex=0 and one new result;
+      // subsequent fires have resultIndex pointing past the previously
+      // delivered finals.
       let interim = "";
-      let finalText = finalAnswerRef.current;
-      for (let i = 0; i < event.results.length; i += 1) {
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const r = event.results[i];
         const transcript = r[0]?.transcript ?? "";
         if (r.isFinal) {
-          finalText += (finalText ? " " : "") + transcript.trim();
+          const cleaned = transcript.trim();
+          if (cleaned) {
+            finalAnswerRef.current = finalAnswerRef.current
+              ? `${finalAnswerRef.current} ${cleaned}`
+              : cleaned;
+          }
         } else {
           interim += transcript;
         }
       }
-      finalAnswerRef.current = finalText;
       setInterimTranscript(interim);
-      setUserAnswerDraft(finalText + (interim ? " " + interim : ""));
+      setUserAnswerDraft(
+        finalAnswerRef.current + (interim ? " " + interim : ""),
+      );
       // Reset the silence timer on every new chunk.
       if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = window.setTimeout(() => {

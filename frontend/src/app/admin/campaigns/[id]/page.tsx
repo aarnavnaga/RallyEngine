@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Pencil, X } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -11,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
+import { CAMPAIGNS_BY_ID, type Campaign } from "@/lib/data/campaigns";
 import { BRANDS_BY_ID } from "@/lib/data/brands";
 import { CREATORS } from "@/lib/data/creators";
 import { Avatar } from "@/components/shell/Avatar";
@@ -24,6 +25,203 @@ import {
   similarity,
 } from "@/lib/util/score";
 import { ClaudeMark } from "@/components/shell/ClaudeMark";
+
+// ── Campaign edit overlay (localStorage-persisted) ─────────────────────────
+//
+// Lets Aaron edit deliverables, rate range, min/max creator follower count,
+// brief, title, and cadence on any campaign. We persist the override in
+// localStorage so the edits survive reload without touching the seed data.
+// Storage key is per-campaign so different campaigns track independent
+// edit histories.
+
+interface CampaignEditOverrides {
+  title?: string;
+  brief?: string;
+  deliverables?: string[];
+  rate_low?: number;
+  rate_high?: number;
+  min_followers?: number;
+  max_followers?: number;
+  cadence?: string;
+}
+
+const EDIT_STORAGE_PREFIX = "mercor.campaign.edits.";
+
+function loadCampaignEdits(id: string): CampaignEditOverrides {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(EDIT_STORAGE_PREFIX + id);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as CampaignEditOverrides;
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function saveCampaignEdits(id: string, edits: CampaignEditOverrides): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(EDIT_STORAGE_PREFIX + id, JSON.stringify(edits));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+interface CampaignEditModalProps {
+  campaign: Campaign;
+  edits: CampaignEditOverrides;
+  onSave: (next: CampaignEditOverrides) => void;
+  onClose: () => void;
+}
+
+function CampaignEditModal({ campaign, edits, onSave, onClose }: CampaignEditModalProps) {
+  const [title, setTitle] = useState(edits.title ?? campaign.title);
+  const [brief, setBrief] = useState(edits.brief ?? campaign.brief);
+  const [deliverables, setDeliverables] = useState((edits.deliverables ?? campaign.deliverables).join("\n"));
+  const [rateLow, setRateLow] = useState(String(edits.rate_low ?? campaign.rate_low));
+  const [rateHigh, setRateHigh] = useState(String(edits.rate_high ?? campaign.rate_high));
+  const [minFollowers, setMinFollowers] = useState(String(edits.min_followers ?? 5000));
+  const [maxFollowers, setMaxFollowers] = useState(String(edits.max_followers ?? 5_000_000));
+  const [cadence, setCadence] = useState(edits.cadence ?? "1× post / month");
+
+  function handleSave() {
+    const next: CampaignEditOverrides = {
+      title: title.trim() || campaign.title,
+      brief: brief.trim() || campaign.brief,
+      deliverables: deliverables
+        .split(/\n+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+      rate_low: Number(rateLow) || campaign.rate_low,
+      rate_high: Number(rateHigh) || campaign.rate_high,
+      min_followers: Number(minFollowers) || 5000,
+      max_followers: Number(maxFollowers) || 5_000_000,
+      cadence: cadence.trim() || "1× post / month",
+    };
+    onSave(next);
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-[640px] rounded-[14px] border border-[var(--border)] bg-[var(--bg)] shadow-[var(--shadow-modal)]">
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+          <div className="text-[15px] font-semibold tracking-tight">Edit campaign</div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-7 w-7 place-items-center rounded-full hover:bg-[var(--bg-hover)]"
+            aria-label="Close"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div className="space-y-4 px-5 py-5 text-[13px]">
+          <Field label="Title">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2"
+            />
+          </Field>
+          <Field label="Brief">
+            <textarea
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              rows={4}
+              className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2"
+            />
+          </Field>
+          <Field label="Deliverables (one per line)">
+            <textarea
+              value={deliverables}
+              onChange={(e) => setDeliverables(e.target.value)}
+              rows={4}
+              className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 font-mono text-[12px]"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Rate low (USD)">
+              <input
+                value={rateLow}
+                onChange={(e) => setRateLow(e.target.value)}
+                inputMode="numeric"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 tabular-nums"
+              />
+            </Field>
+            <Field label="Rate high (USD)">
+              <input
+                value={rateHigh}
+                onChange={(e) => setRateHigh(e.target.value)}
+                inputMode="numeric"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 tabular-nums"
+              />
+            </Field>
+            <Field label="Min creator followers">
+              <input
+                value={minFollowers}
+                onChange={(e) => setMinFollowers(e.target.value)}
+                inputMode="numeric"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 tabular-nums"
+              />
+            </Field>
+            <Field label="Max creator followers">
+              <input
+                value={maxFollowers}
+                onChange={(e) => setMaxFollowers(e.target.value)}
+                inputMode="numeric"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 tabular-nums"
+              />
+            </Field>
+          </div>
+          <Field label="Cadence">
+            <input
+              value={cadence}
+              onChange={(e) => setCadence(e.target.value)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2"
+            />
+          </Field>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] hover:bg-[var(--bg-hover)]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="btn-primary text-[13px]"
+            style={{ padding: "6px 14px" }}
+          >
+            Save changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--fg-muted)]">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
 
 // ── Synthetic perf generator (deterministic from campaign id) ──────────────
 function hashSeed(s: string): number {
@@ -109,8 +307,30 @@ export default function CampaignDetailPage({
 }) {
   const { id } = React.use(params);
 
-  const campaign = CAMPAIGNS_BY_ID[id];
-  const brand = campaign ? BRANDS_BY_ID[campaign.brand_id] : null;
+  const baseCampaign = CAMPAIGNS_BY_ID[id];
+  const brand = baseCampaign ? BRANDS_BY_ID[baseCampaign.brand_id] : null;
+
+  // Edit overlay — Aaron can update campaign fields and we persist them in
+  // localStorage. The merged campaign view is what the rest of the page
+  // renders against, so edits flow through the brief, deliverables, rate
+  // range, and pricing sections without a refetch.
+  const [edits, setEdits] = useState<CampaignEditOverrides>({});
+  const [isEditing, setIsEditing] = useState(false);
+  useEffect(() => {
+    setEdits(loadCampaignEdits(id));
+  }, [id]);
+  const campaign = useMemo<Campaign | undefined>(() => {
+    if (!baseCampaign) return undefined;
+    return {
+      ...baseCampaign,
+      title: edits.title ?? baseCampaign.title,
+      brief: edits.brief ?? baseCampaign.brief,
+      deliverables: edits.deliverables ?? baseCampaign.deliverables,
+      rate_low: edits.rate_low ?? baseCampaign.rate_low,
+      rate_high: edits.rate_high ?? baseCampaign.rate_high,
+    };
+  }, [baseCampaign, edits]);
+  const cadence = edits.cadence ?? "1× post / month";
 
   // Derive top-5 creators by similarity to this campaign's brand.
   // `pin_first_for: [brand.id]` creators jump to the top regardless of cosine
@@ -219,6 +439,13 @@ export default function CampaignDetailPage({
               data-test-id="campaign-pause-toggle"
             >
               {paused ? "Resume campaign" : "Pause campaign"}
+            </button>
+            <button
+              onClick={() => setIsEditing(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
+              data-test-id="campaign-edit-open"
+            >
+              <Pencil size={12} /> Edit campaign
             </button>
           </div>
         </div>
@@ -511,6 +738,19 @@ export default function CampaignDetailPage({
           </section>
         </div>
       </div>
+
+      {isEditing ? (
+        <CampaignEditModal
+          campaign={baseCampaign!}
+          edits={edits}
+          onSave={(next) => {
+            setEdits(next);
+            saveCampaignEdits(id, next);
+            setIsEditing(false);
+          }}
+          onClose={() => setIsEditing(false)}
+        />
+      ) : null}
     </div>
   );
 }

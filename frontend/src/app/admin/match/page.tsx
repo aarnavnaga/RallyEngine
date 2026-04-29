@@ -434,22 +434,51 @@ function DetailPane({
       {/* Right: impact breakdown + pay breakdown */}
       <div>
         <div className="label-cap">Impact score breakdown</div>
-        <table className="mt-2 w-full text-[12px]">
+        <table className="mt-3 w-full text-[12px]">
           <tbody>
-            <Row label="sqrt(followers)/100" value={impact.followers_factor.toFixed(2)} />
-            <Row label="niche relevance" value={impact.niche_relevance.toFixed(2)} />
-            <Row label="posts/week" value={impact.cadence.toFixed(1)} />
-            <Row label="log10(median interactions+1)" value={impact.interactions.toFixed(2)} />
-            <Row label="authenticity" value={impact.authenticity.toFixed(2)} />
-            <Row label="geo match" value={impact.geo_match.toFixed(2)} />
+            <BreakdownRow
+              label="Followers factor"
+              formula="√(followers) / 100"
+              value={impact.followers_factor.toFixed(2)}
+            />
+            <BreakdownRow
+              label="Niche relevance"
+              value={impact.niche_relevance.toFixed(2)}
+            />
+            <BreakdownRow
+              label="Posting cadence"
+              formula="posts / week"
+              value={impact.cadence.toFixed(1)}
+            />
+            <BreakdownRow
+              label="Engagement"
+              formula="log₁₀(median interactions + 1)"
+              value={impact.interactions.toFixed(2)}
+            />
+            <BreakdownRow
+              label="Authenticity"
+              value={impact.authenticity.toFixed(2)}
+            />
+            <BreakdownRow
+              label="Geo match"
+              value={impact.geo_match.toFixed(2)}
+            />
             <tr className="border-t border-[var(--border)]">
-              <td className="py-1.5 text-[var(--fg-muted)]">composite =</td>
-              <td className="py-1.5 text-right tabular-nums">{impact.composite.toFixed(2)}</td>
+              <td className="pt-2.5 pb-1.5 text-[12px] text-[var(--fg-muted)]">
+                Composite
+              </td>
+              <td className="pt-2.5 pb-1.5 text-right text-[13px] font-medium tabular-nums text-[var(--fg)]">
+                {impact.composite.toFixed(2)}
+              </td>
             </tr>
             <tr>
-              <td className="py-1.5 font-medium">Score</td>
+              <td className="py-1.5 text-[12px] font-semibold text-[var(--fg)]">
+                Score
+              </td>
               <td className="py-1.5 text-right">
-                <span className="pill pill-accent text-[11px]">{impact.rounded}</span>
+                <span className="pill pill-accent text-[11px] font-semibold tabular-nums">
+                  {impact.rounded}
+                </span>
               </td>
             </tr>
           </tbody>
@@ -464,19 +493,37 @@ function DetailPane({
         </Link>
 
         <div className="mt-5 label-cap">Suggested pay breakdown</div>
-        <table className="mt-2 w-full text-[12px]">
+        <table className="mt-3 w-full text-[12px]">
           <tbody>
-            <Row label="base floor (tier)" value={fmtCurrency(pay.base_floor)} />
-            <Row label="impact × $0.15" value={fmtCurrency(pay.impact_term)} />
-            <Row label="relevant-eyes bonus" value={fmtCurrency(pay.relevant_eyes_bonus)} />
+            <BreakdownRow
+              label="Base floor"
+              formula="follower-tier minimum"
+              value={fmtCurrency(pay.base_floor)}
+            />
+            <BreakdownRow
+              label="Impact term"
+              formula="impact × $0.15"
+              value={fmtCurrency(pay.impact_term)}
+            />
+            <BreakdownRow
+              label="Relevant-eyes bonus"
+              formula="relevant_views × $0.05"
+              value={fmtCurrency(pay.relevant_eyes_bonus)}
+            />
             <tr className="border-t border-[var(--border)]">
-              <td className="py-1.5 font-medium">Recommended</td>
-              <td className="py-1.5 text-right font-semibold">{fmtCurrency(pay.recommended)}</td>
+              <td className="pt-2.5 pb-1.5 text-[13px] font-semibold text-[var(--fg)]">
+                Recommended
+              </td>
+              <td className="pt-2.5 pb-1.5 text-right text-[13px] font-semibold tabular-nums text-[var(--fg)]">
+                {fmtCurrency(pay.recommended)}
+              </td>
             </tr>
             <tr>
-              <td className="py-1.5 text-[var(--fg-muted)]">range</td>
-              <td className="py-1.5 text-right text-[11px] text-[var(--fg-muted)]">
-                {fmtCurrency(pay.total_low)} - {fmtCurrency(pay.total_high)}
+              <td className="py-1.5 text-[12px] text-[var(--fg-muted)]">
+                Range
+              </td>
+              <td className="py-1.5 text-right text-[11px] text-[var(--fg-muted)] tabular-nums">
+                {fmtCurrency(pay.total_low)} – {fmtCurrency(pay.total_high)}
               </td>
             </tr>
           </tbody>
@@ -486,11 +533,28 @@ function DetailPane({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function BreakdownRow({
+  label,
+  formula,
+  value,
+}: {
+  label: string;
+  formula?: string;
+  value: string;
+}) {
   return (
-    <tr>
-      <td className="py-1 text-[var(--fg-muted)]">{label}</td>
-      <td className="py-1 text-right tabular-nums">{value}</td>
+    <tr className="align-top">
+      <td className="py-1.5 pr-2">
+        <div className="text-[12px] leading-tight text-[var(--fg)]">{label}</div>
+        {formula ? (
+          <div className="mt-0.5 font-mono text-[10px] leading-tight text-[var(--fg-subtle)]">
+            {formula}
+          </div>
+        ) : null}
+      </td>
+      <td className="py-1.5 text-right text-[12px] tabular-nums text-[var(--fg)]">
+        {value}
+      </td>
     </tr>
   );
 }

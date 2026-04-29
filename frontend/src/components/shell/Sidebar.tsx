@@ -17,7 +17,6 @@ import {
   CircleDollarSign,
   User as UserIcon,
   LayoutDashboard,
-  TableProperties,
   Sparkles,
   Inbox,
   TrendingUp,
@@ -41,9 +40,15 @@ const CREATOR_ITEMS: Item[] = [
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 
+// Experts tab cut 2026-04-29 — Match workbench already covers expert
+// discovery (filter by brand, sortable Impact column, expand-row detail with
+// the same RAG rationale + niche tag overlap that the standalone
+// /admin/creators page shows). Logan asked to condense the two so admins
+// have one entry point. The /admin/creators route stays accessible by direct
+// URL (deep links from older threads still resolve) but is no longer
+// surfaced in the rail.
 const ADMIN_ITEMS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/creators", label: "Experts", icon: TableProperties },
   { href: "/admin/match", label: "Match", icon: Sparkles },
   { href: "/admin/outreach", label: "Inbox", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: TrendingUp },

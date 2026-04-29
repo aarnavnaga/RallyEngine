@@ -81,7 +81,7 @@ function fallbackReply(body: ChatReplyBody): string {
     return `Slate looks good. Locking ${counterFirst} at proposed rate - send the contract for countersign.`;
   }
   if (brand.includes("bucked") || brand.includes("ryse")) {
-    return "Approve at $750 + product. Need brand-voice review on draft script before posting.";
+    return "Approve at $750 + product. Want to review the draft against our brand-voice fit score before posting.";
   }
   if (brand.includes("ghost")) {
     return "Can we tighten exclusivity to 30 days only? At $900 with that constraint we're in.";

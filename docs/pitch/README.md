@@ -7,7 +7,9 @@ Internal Mercor proposal for a new Expert Domain — *Creator Experts* — from 
 | File | Purpose |
 |---|---|
 | [`Mercor-Creators-Domain.pptx`](./Mercor-Creators-Domain.pptx) | The deck. 6 slides, Mercor-styled. |
-| [`aaron-call-script.md`](./aaron-call-script.md) | What Logan and Aarnav say on the call, slide by slide. ~4 min spoken + 3 min demo. |
+| [`aaron-call-final.md`](./aaron-call-final.md) | **Live call script.** Verbatim numbers, button text, URLs from prod. What Logan says + what Logan clicks during the demo. |
+| [`aaron-demo-day-checklist.md`](./aaron-demo-day-checklist.md) | **Day-of operating checklist.** T-15 pre-flight, mid-call recovery moves, T+0 wrap-up. |
+| [`aaron-call-script.md`](./aaron-call-script.md) | Historical script — pitch-deck era, kept for reference. The `final` doc supersedes it. |
 | `mercor-logo.png` | Logo asset embedded in the deck. |
 
 ## Slides

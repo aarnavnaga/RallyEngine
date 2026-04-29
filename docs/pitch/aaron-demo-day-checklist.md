@@ -86,4 +86,14 @@ If Aaron asks "what would the second cohort cost?" or "what's the formula for si
 
 ---
 
+## Known measurement artifacts
+
+Things that *look* like problems but aren't, in case Aaron pulls up a tool mid-call:
+
+- **Lighthouse "Performance: 89, LCP 3.8s" on `/admin/match`.** Misleading. Lighthouse runs unauthenticated, AppShell client-side redirects to `/`, and Lighthouse measures the landing page hero h1. Real users land on `/admin/match` already-authenticated via the persona click and see Logan's row in 121-299ms (CI-verified). The Lighthouse number reflects the auth-redirect round-trip, not real perceived speed.
+- **Rate limit is per-edge-region, not global.** The middleware's 30 req/60s bucket lives in module memory on each Vercel edge runtime instance. A user routed across regions during a sustained spam attack would get more than 30/min total. Acceptable for a demo-tier defense; would need Redis/Upstash for a true global limit.
+- **Middleware propagation lag (~30s) after deploy.** A `vercel deploy --prod` takes about half a minute before all edge regions serve the new middleware. If you re-run the spec or re-test rate-limit *immediately* after deploy you may briefly see the previous deploy's behavior. Wait 30s, retest.
+
+---
+
 _Last verified against prod on 2026-04-29._

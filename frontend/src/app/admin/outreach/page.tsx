@@ -145,7 +145,7 @@ function simulatedCreatorReply(brand: Brand, creator: Creator): string {
 function simulatedBrandReply(brand: Brand, creator: Creator): string {
   if (brand.id === "celsius") return `${creator.name.split(" ")[0]} is exactly our college-ICP profile. Greenlight at $850 base + bonus for ≥500K views. Lock the contract.`;
   if (brand.id === "alani" || brand.id === "bloom") return `Slate looks good. Locking ${creator.name.split(" ")[0]} at proposed rate - send the contract for countersign.`;
-  if (brand.id === "bucked-up" || brand.id === "ryse") return `Approve at $750 + product. Need brand-voice review on draft script before posting.`;
+  if (brand.id === "bucked-up" || brand.id === "ryse") return `Approve at $750 + product. Want to review the draft against our brand-voice fit score before posting.`;
   if (brand.id === "ghost-energy") return `Can we tighten exclusivity to 30 days only? At $900 with that constraint we're in.`;
   return "Reviewing internally. Will revert in 48 hours.";
 }

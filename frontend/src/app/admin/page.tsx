@@ -301,7 +301,14 @@ function KPICard({
 
 function PriorityDot({ p }: { p: "high" | "med" | "low" }) {
   const c = p === "high" ? "#dc2626" : p === "med" ? "#f59e0b" : "#9ca3af";
-  return <span className="mt-2 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: c }} aria-label={`${p} priority`} />;
+  return (
+    <span
+      role="img"
+      aria-label={`${p} priority`}
+      className="mt-2 inline-block h-2 w-2 shrink-0 rounded-full"
+      style={{ background: c }}
+    />
+  );
 }
 
 function AddActionForm({ onAdd }: { onAdd: (item: ActionItem) => void }) {

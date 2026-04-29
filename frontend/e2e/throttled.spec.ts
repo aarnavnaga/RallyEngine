@@ -28,7 +28,15 @@ test.describe("Aaron flow under Slow-3G throttle", () => {
 
     // 1. Landing → /admin
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    // On Slow-3G the React bundle takes longer to hydrate, so the click
+    // handler that opens the persona dropdown isn't bound yet at first
+    // paint. Wait for it to be interactive, then click.
+    await page.locator('[data-test-id="landing-nav-login"]').first().waitFor();
     await page.locator('[data-test-id="landing-nav-login"]').first().click();
+    await page
+      .locator('[data-test-id="landing-nav-login-admin"]')
+      .first()
+      .waitFor({ timeout: 30_000 });
     await page.locator('[data-test-id="landing-nav-login-admin"]').first().click();
     await expect(page).toHaveURL(/\/admin$/);
     await page.locator('aside a[href="/admin/match"]').waitFor();

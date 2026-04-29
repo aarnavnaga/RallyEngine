@@ -105,12 +105,14 @@ function MatchInner() {
       {/* Brand selector */}
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-4">
-          <div className="label-cap">Brand</div>
+          <label className="label-cap" htmlFor="match-brand-select">Brand</label>
           <select
+            id="match-brand-select"
             value={brandId}
             onChange={(e) => setBrandId(e.target.value)}
             className="mt-2 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[13px]"
             data-test-id="match-brand-select"
+            aria-label="Brand"
           >
             {BRANDS.map((b) => (
               <option key={b.id} value={b.id}>

@@ -560,7 +560,7 @@ function OutreachInner() {
           deliverables are decided in the interview, here is just outreach. */}
       <div className="mt-4 grid gap-4 grid-cols-1 lg:grid-cols-[320px_1fr]">
         {/* LEFT: deal list */}
-        <aside className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
+        <aside className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] overflow-visible">
           {visibleDeals.length === 0 ? (
             <div className="flex h-32 items-center justify-center text-[13px] text-[var(--fg-muted)]">
               No deals in this tab yet.
@@ -856,7 +856,8 @@ function DealDetail({ deal, onUpdate }: DealDetailProps) {
           </div>
         </div>
 
-        <StageBreadcrumb stage={deal.stage} />
+        {/* StageBreadcrumb removed — Inbox only has Pending and Signed,
+            so the breadcrumb adds visual noise without information. */}
       </div>
 
       {/* Chat side toggle */}

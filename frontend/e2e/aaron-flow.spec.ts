@@ -8,9 +8,12 @@ test.describe("Aaron Langerman flow — production smoke", () => {
   test("end-to-end: sign in, match, outreach, haggle, campaign", async ({
     page,
   }) => {
-    const consoleErrors: string[] = [];
+    const consoleErrors: { text: string; url: string }[] = [];
     page.on("console", (m) => {
-      if (m.type() === "error") consoleErrors.push(m.text());
+      if (m.type() === "error") {
+        const url = m.location().url ?? "";
+        consoleErrors.push({ text: m.text(), url });
+      }
     });
 
     // Stage 1 — landing → sign in as Aaron. Two "Log in" buttons exist
@@ -86,14 +89,22 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     // errors. After D2 (drop clearbit) we expect 0; google favicon may
     // still 404 for some domains. Anything else (a real script error,
     // a 500 from /api/*, a missing module) should fail the test.
-    const benign = (msg: string) =>
-      msg.includes("logo.clearbit.com") ||
-      msg.includes("google.com/s2/favicons") ||
-      msg.includes("Failed to load resource") &&
-        (msg.includes("favicon") || msg.includes("clearbit"));
-    const real = consoleErrors.filter((m) => !benign(m));
+    const benign = (e: { text: string; url: string }) => {
+      const blob = `${e.text} ${e.url}`;
+      return (
+        blob.includes("logo.clearbit.com") ||
+        blob.includes("google.com/s2/favicons") ||
+        blob.includes("/favicon.ico") ||
+        (blob.includes("Failed to load resource") &&
+          (blob.includes("favicon") || blob.includes("clearbit")))
+      );
+    };
+    const real = consoleErrors.filter((e) => !benign(e));
     if (real.length > 0) {
-      console.log("Non-benign console errors:\n  - " + real.join("\n  - "));
+      console.log(
+        "Non-benign console errors:\n  - " +
+          real.map((e) => `${e.text} (${e.url})`).join("\n  - "),
+      );
     }
     expect(real, "real console errors during the walk").toHaveLength(0);
   });

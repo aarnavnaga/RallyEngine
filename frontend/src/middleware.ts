@@ -76,17 +76,25 @@ function matchRule(pathname: string): RateConfig | null {
   return null;
 }
 
-function consumeToken(key: string, cfg: RateConfig, now: number): boolean {
+function consumeToken(
+  key: string,
+  cfg: RateConfig,
+  now: number,
+): { ok: true } | { ok: false; retryAfter: number } {
   const state = buckets.get(key);
   if (!state || now - state.windowStart >= cfg.windowMs) {
     buckets.set(key, { count: 1, windowStart: now });
-    return true;
+    return { ok: true };
   }
   if (state.count >= cfg.limit) {
-    return false;
+    const retryAfter = Math.max(
+      1,
+      Math.ceil((state.windowStart + cfg.windowMs - now) / 1000),
+    );
+    return { ok: false, retryAfter };
   }
   buckets.set(key, { count: state.count + 1, windowStart: state.windowStart });
-  return true;
+  return { ok: true };
 }
 
 // Same-origin gate. If an Origin header is present, it must match the Host
@@ -121,8 +129,15 @@ export function middleware(req: NextRequest): NextResponse {
   gcExpired(now);
 
   const key = `${req.nextUrl.pathname}:${clientIp(req)}`;
-  if (!consumeToken(key, cfg, now)) {
-    return NextResponse.json({ error: "rate limit exceeded" }, { status: 429 });
+  const consumed = consumeToken(key, cfg, now);
+  if (!consumed.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", retry_after: consumed.retryAfter },
+      {
+        status: 429,
+        headers: { "Retry-After": String(consumed.retryAfter) },
+      },
+    );
   }
 
   return NextResponse.next();

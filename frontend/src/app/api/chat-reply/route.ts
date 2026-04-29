@@ -89,55 +89,10 @@ function fallbackReply(body: ChatReplyBody): string {
   return "Reviewing internally. Will revert in 48 hours.";
 }
 
-// In-memory token bucket: 30 requests / 60s per IP. Defensive — fine if the
-// demo URL leaks. Bucket lives in module scope so it persists across requests
-// on the same warm Vercel function instance. Cold starts wipe it (worst case:
-// a few extra requests until the next cold start), which is acceptable for a
-// demo-tier defense.
-const RATE_LIMIT_MAX = 30;
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const buckets = new Map<string, number[]>();
-
-function clientIp(req: NextRequest): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
-  const real = req.headers.get("x-real-ip");
-  if (real) return real.trim();
-  return "unknown";
-}
-
-function checkRateLimit(ip: string): { ok: true } | { ok: false; retryAfter: number } {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_WINDOW_MS;
-  const recent = (buckets.get(ip) ?? []).filter((t) => t > cutoff);
-  if (recent.length >= RATE_LIMIT_MAX) {
-    const oldest = recent[0]!;
-    const retryAfter = Math.max(1, Math.ceil((oldest + RATE_LIMIT_WINDOW_MS - now) / 1000));
-    buckets.set(ip, recent);
-    return { ok: false, retryAfter };
-  }
-  recent.push(now);
-  buckets.set(ip, recent);
-  // Opportunistic GC: when buckets grow past a few hundred unique IPs, drop
-  // any bucket whose newest entry has aged out.
-  if (buckets.size > 500) {
-    for (const [k, v] of buckets) {
-      if (v.length === 0 || v[v.length - 1]! < cutoff) buckets.delete(k);
-    }
-  }
-  return { ok: true };
-}
-
+// Rate limiting for this route lives in the edge middleware (src/middleware.ts:
+// 30 req/60s per IP, same-origin gate). Middleware rejects before this handler
+// runs, so this function only sees allowed traffic.
 export async function POST(req: NextRequest) {
-  const ip = clientIp(req);
-  const rl = checkRateLimit(ip);
-  if (!rl.ok) {
-    return NextResponse.json(
-      { error: "rate_limited", retry_after: rl.retryAfter },
-      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
-    );
-  }
-
   let body: ChatReplyBody;
   try {
     body = (await req.json()) as ChatReplyBody;

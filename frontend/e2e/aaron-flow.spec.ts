@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const BASE = process.env.PROD_URL ?? "https://musing-maxwell-84ed29.vercel.app";
 
+// I7: no-op whitespace tweak to validate the new preview-aware CI workflow.
 test.describe("Aaron Langerman flow — production smoke", () => {
   test.setTimeout(60_000);
 

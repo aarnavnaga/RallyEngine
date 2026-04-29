@@ -79,7 +79,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+        # All three so the cross-browser project (J1) runs in CI; webkit
+        # and firefox are mandatory now that aaron-flow.spec.ts targets all
+        # three projects.
+        run: pnpm exec playwright install --with-deps chromium webkit firefox
 
       - name: Run Playwright spec
         env:

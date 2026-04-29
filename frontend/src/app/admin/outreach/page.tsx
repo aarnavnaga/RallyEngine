@@ -15,7 +15,11 @@ import { buildCitations, computeImpact, computeSuggestedPay, fmtCurrency, fmtFol
 // Types
 // ---------------------------------------------------------------------------
 
-type DealStage = "outreach" | "negotiating" | "offer-pending" | "signed";
+// Inbox-only flow: chats are for OUTREACH only — creators either agree to
+// the terms or pass. There is no in-app negotiation. Once signed, the
+// conversation moves to Slack and the chat composer is replaced by a
+// "Comms moved to Slack" banner so the inbox stays clean.
+type DealStage = "outreach" | "signed";
 
 type ChatSide = "creator" | "brand";
 
@@ -58,7 +62,9 @@ type Deal = {
   contract: ContractTerms | null;
 };
 
-type TabName = "Pending" | "Negotiating" | "Offer" | "Signed";
+// Inbox is a single scrollable list — no separate tabs per stage. Status
+// is communicated by a colored pill on each row (orange = pending,
+// green = signed). Aaron filters by scrolling, not by clicking tabs.
 
 // ---------------------------------------------------------------------------
 // Helpers - draft + reply builders
@@ -163,7 +169,7 @@ function buildDefaultDeals(): Deal[] {
       creatorId: "loganmann32",
       brandId: "celsius",
       campaignId: "celsius-college-q2",
-      stage: "negotiating",
+      stage: "outreach",
       similarity: similarity(creator, brand),
       creatorChat: chatWith(
         [
@@ -202,7 +208,7 @@ function buildDefaultDeals(): Deal[] {
       creatorId: cfg.creator,
       brandId: cfg.brand,
       campaignId: cfg.campaign,
-      stage: "negotiating",
+      stage: "outreach",
       similarity: similarity(creator, brand),
       creatorChat: chatWith(
         [
@@ -374,22 +380,12 @@ function saveAutoMediate(map: AutoMediateMap): void {
 // Stage helpers
 // ---------------------------------------------------------------------------
 
-const STAGES: DealStage[] = ["outreach", "negotiating", "offer-pending", "signed"];
+const STAGES: DealStage[] = ["outreach", "signed"];
 
 const STAGE_LABEL: Record<DealStage, string> = {
-  outreach: "Outreach",
-  negotiating: "Negotiating",
-  "offer-pending": "Offer pending",
+  outreach: "Pending",
   signed: "Signed",
 };
-
-function dealMatchesTab(deal: Deal, tab: TabName): boolean {
-  if (tab === "Pending") return deal.stage === "outreach";
-  if (tab === "Negotiating") return deal.stage === "negotiating";
-  if (tab === "Offer") return deal.stage === "offer-pending";
-  if (tab === "Signed") return deal.stage === "signed";
-  return false;
-}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -472,31 +468,27 @@ function OutreachInner() {
     });
   }, [picksParam, brandParam]);
 
-  const [activeTab, setActiveTab] = useState<TabName>("Pending");
   const [selectedId, setSelectedId] = useState<string>("");
 
-  // Default-select the focused deal if URL says so, else the first matching the active tab.
+  // Default-select the focused deal if URL says so, else the first deal.
   useEffect(() => {
     if (focusId && deals.some((d) => d.id === focusId)) {
       setSelectedId(focusId);
-      const match = deals.find((d) => d.id === focusId);
-      if (match) setActiveTab(stageToTab(match.stage));
       return;
     }
     if (!selectedId || !deals.some((d) => d.id === selectedId)) {
-      const first = deals.find((d) => dealMatchesTab(d, activeTab)) ?? deals[0];
+      const first = deals[0];
       if (first) setSelectedId(first.id);
     }
-  }, [focusId, deals, activeTab, selectedId]);
+  }, [focusId, deals, selectedId]);
 
-  const visibleDeals = useMemo(() => deals.filter((d) => dealMatchesTab(d, activeTab)), [deals, activeTab]);
-
-  const tabCounts = useMemo(() => ({
-    Pending: deals.filter((d) => d.stage === "outreach").length,
-    Negotiating: deals.filter((d) => d.stage === "negotiating").length,
-    Offer: deals.filter((d) => d.stage === "offer-pending").length,
-    Signed: deals.filter((d) => d.stage === "signed").length,
-  }), [deals]);
+  // Inbox: outreach pending sorted to the top (Aaron's queue), signed at
+  // the bottom for reference. Within each group keep input order.
+  const visibleDeals = useMemo(() => {
+    const pending = deals.filter((d) => d.stage === "outreach");
+    const signed = deals.filter((d) => d.stage === "signed");
+    return [...pending, ...signed];
+  }, [deals]);
 
   const selected = deals.find((d) => d.id === selectedId) ?? null;
 
@@ -512,39 +504,9 @@ function OutreachInner() {
         <h1 className="h-display text-[28px]">Inbox</h1>
       </div>
 
-      {/* Status tabs */}
-      <div className="mt-5 flex items-center gap-x-8 border-b border-[var(--border)]">
-        {(["Pending", "Negotiating", "Offer", "Signed"] as TabName[]).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            data-test-id={`outreach-tab-${tab.toLowerCase()}`}
-            onClick={() => {
-              setActiveTab(tab);
-              const first = deals.find((d) => dealMatchesTab(d, tab));
-              if (first) setSelectedId(first.id);
-            }}
-            className={[
-              "relative pb-3 pt-1 text-[14px] tracking-tight",
-              activeTab === tab
-                ? "font-medium text-[var(--accent)] after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:bg-[var(--accent)]"
-                : "text-[var(--fg-muted)] hover:text-[var(--fg)]",
-            ].join(" ")}
-          >
-            {tab}
-            <span
-              className={`ml-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold ${
-                activeTab === tab ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--bg-hover)] text-[var(--fg-muted)]"
-              }`}
-            >
-              {tabCounts[tab]}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Two/three-pane layout */}
-      <div className={`mt-4 grid gap-4 ${selected?.contract && selected.stage !== "outreach" ? "grid-cols-1 lg:grid-cols-[320px_1fr_320px]" : "grid-cols-1 lg:grid-cols-[320px_1fr]"}`}>
+      {/* Two-pane layout: scrollable inbox + chat. No negotiation rail —
+          deliverables are decided in the interview, here is just outreach. */}
+      <div className="mt-4 grid gap-4 grid-cols-1 lg:grid-cols-[320px_1fr]">
         {/* LEFT: deal list */}
         <aside className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
           {visibleDeals.length === 0 ? (
@@ -591,12 +553,7 @@ function OutreachInner() {
   );
 }
 
-function stageToTab(stage: DealStage): TabName {
-  if (stage === "outreach") return "Pending";
-  if (stage === "negotiating") return "Negotiating";
-  if (stage === "offer-pending") return "Offer";
-  return "Signed";
-}
+// stageToTab removed — Inbox no longer has tabs.
 
 // ---------------------------------------------------------------------------
 // Deal row (left list)
@@ -693,11 +650,9 @@ function AutoMediateSwitch({ active, onToggle }: AutoMediateSwitchProps) {
 }
 
 function StagePill({ stage }: { stage: DealStage }) {
-  const cls =
-    stage === "outreach" ? "pill"
-    : stage === "negotiating" ? "pill pill-warning"
-    : stage === "offer-pending" ? "pill pill-accent"
-    : "pill pill-success";
+  // Pending = orange/amber. Signed = green. No in-between states — once
+  // signed, the deal moves to Slack and the row reads "Signed".
+  const cls = stage === "outreach" ? "pill pill-warning" : "pill pill-success";
   return <span className={cls} style={{ fontSize: 10, whiteSpace: "nowrap" }}>{STAGE_LABEL[stage]}</span>;
 }
 
@@ -1071,13 +1026,15 @@ function ChatPanel({
           ...d[chatKey],
           messages: [...d[chatKey].messages, reply],
         };
-        let stage: DealStage = d.stage;
+        // Outreach is the only chat stage. Once the counterparty agrees,
+        // a separate Assign-SPL flow takes over — chats here don't auto-
+        // promote to a "signed" state. The contract template is still
+        // built in the background so we have it ready for handoff.
         let contract = d.contract;
-        if (d.stage === "outreach") {
-          stage = "negotiating";
+        if (d.stage === "outreach" && !contract) {
           contract = buildContract(creator, brand, pay.total_low, pay.total_high);
         }
-        return { [chatKey]: updatedChat, stage, contract };
+        return { [chatKey]: updatedChat, contract };
       });
       setWaiting(false);
     },
@@ -1185,7 +1142,7 @@ function staticSuggestions(deal: Deal, side: ChatSide, creator: Creator, brand: 
   const otherSide = side === "creator" ? brand.name : creator.name.split(" ")[0];
   const baseRate = deal.contract?.base_pay ?? Math.round((computeSuggestedPay(creator, brand, computeImpact(creator, brand)).total_low + computeSuggestedPay(creator, brand, computeImpact(creator, brand)).total_high) / 2);
 
-  if (deal.stage === "outreach" || deal.stage === "negotiating") {
+  if (deal.stage === "outreach") {
     return [
       {
         vibe: "positive",
@@ -1261,17 +1218,18 @@ function autoMediateStep(deal: Deal, creator: Creator, brand: Brand, campaignTit
       text: simulatedCreatorReply(brand, creator),
       timestamp: now,
     };
-    let stage: DealStage = deal.stage;
+    // Build the contract template in the background so it's ready when
+    // Aaron decides to assign SPLs. Outreach chats themselves do not
+    // promote stages — Aaron either accepts the deal manually (→ signed
+    // → comms move to Slack) or escalates via Assign SPLs.
     let contract = deal.contract;
-    if (deal.stage === "outreach") {
-      stage = "negotiating";
+    if (!contract) {
       const impact = computeImpact(creator, brand);
       const pay = computeSuggestedPay(creator, brand, impact);
       contract = buildContract(creator, brand, pay.total_low, pay.total_high);
     }
     return {
       creatorChat: { ...deal.creatorChat, messages: [...deal.creatorChat.messages, reply] },
-      stage,
       contract,
     };
   }
@@ -1284,42 +1242,11 @@ function autoMediateStep(deal: Deal, creator: Creator, brand: Brand, campaignTit
       text: simulatedBrandReply(brand, creator),
       timestamp: now,
     };
-    let stage: DealStage = deal.stage;
-    if (deal.stage === "outreach") stage = "negotiating";
     return {
       brandChat: { ...deal.brandChat, messages: [...deal.brandChat.messages, reply] },
-      stage,
     };
   }
-  // Both sides have replied. Advance to offer-pending if not already, with a
-  // mediating Aaron message on each side.
-  if (deal.stage === "negotiating") {
-    return {
-      stage: "offer-pending",
-      creatorChat: {
-        ...deal.creatorChat,
-        messages: [
-          ...deal.creatorChat.messages,
-          { id: `m-c-${now}`, from: "aaron", text: `${creator.name.split(" ")[0]} - ${brand.name} approved the rate. Contract is in your inbox. Sample ships within 48hrs of countersign.`, timestamp: now },
-        ],
-      },
-      brandChat: {
-        ...deal.brandChat,
-        messages: [
-          ...deal.brandChat.messages,
-          { id: `m-b-${now}`, from: "aaron", text: `${brand.name} team - ${creator.name} is locked. Contract is in your inbox for countersign.`, timestamp: now },
-        ],
-      },
-    };
-  }
-  // Already at offer-pending, mark signed.
-  if (deal.stage === "offer-pending" && deal.contract) {
-    return {
-      stage: "signed",
-      contract: { ...deal.contract, approved_by_creator: true, approved_by_brand: true },
-    };
-  }
-  // Nothing to do.
+  // Nothing to do. SPL assignment + signing happens off this surface.
   return {};
 }
 
@@ -1387,10 +1314,10 @@ function ContractPanel({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<D
       <button
         type="button"
         onClick={() => {
+          // Inbox no longer routes through an offer-pending stage; once
+          // both sides approve, mark signed (comms move to Slack).
           if (c.approved_by_creator && c.approved_by_brand) {
             onUpdate({ stage: "signed" });
-          } else {
-            onUpdate({ stage: "offer-pending" });
           }
         }}
         disabled={deal.stage === "signed"}

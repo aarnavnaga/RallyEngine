@@ -217,6 +217,60 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     expect(new URL(page.url()).pathname).toBe("/");
   });
 
+  // Round-16: regression caught in passive monitoring — POST /api/chat-reply
+  // was returning 500 with empty body on malformed payloads (e.g. a stale
+  // client sending {deal_id, brand_id, ...} instead of the expected
+  // {side, counterpartyName, brandName, history, ...} shape). The outer
+  // try/catch only wrapped the fetch, so buildSystemPrompt / buildUserPrompt /
+  // fallbackReply could throw uncaught when fields were missing. Lock the
+  // route's contract: 200 on well-formed payload, never 5xx on any input.
+  test("/api/chat-reply never returns 5xx, even on malformed input", async ({
+    request,
+  }) => {
+    const wellFormed = await request.post(`${BASE}/api/chat-reply`, {
+      headers: { "content-type": "application/json" },
+      data: {
+        side: "creator",
+        counterpartyName: "Logan Mann",
+        brandName: "Celsius",
+        campaignTitle: "Celsius x College Ambassadors - Spring 26",
+        baseRateLow: 700,
+        baseRateHigh: 1100,
+        history: [{ from: "aaron", text: "$700?" }],
+        lastAaronMessage: "$700?",
+      },
+    });
+    expect(wellFormed.status(), "well-formed payload must return 200").toBe(200);
+    const okBody = (await wellFormed.json()) as { text?: string };
+    expect(okBody.text, "well-formed payload must include text").toBeTruthy();
+
+    // Bug-report shape: stale client / hand-crafted curl. Route must
+    // never 5xx — either 200 with fallback text, or 400 with a clear
+    // error. Anything in [500, 599] is the regression.
+    const malformed = await request.post(`${BASE}/api/chat-reply`, {
+      headers: { "content-type": "application/json" },
+      data: {
+        deal_id: "hb40",
+        brand_id: "celsius",
+        creator_id: "loganmann32",
+        reply: "$700?",
+        persona: "creator",
+      },
+    });
+    expect(
+      malformed.status(),
+      `malformed payload must never return 5xx (got ${malformed.status()})`,
+    ).toBeLessThan(500);
+
+    // Empty body is also a regression — even the 500 we hit had
+    // content-length: 0 which means nothing was streamed back.
+    const malformedText = await malformed.text();
+    expect(
+      malformedText.length,
+      "response body must not be empty",
+    ).toBeGreaterThan(0);
+  });
+
   test("creator persona is bounced from admin routes to /home", async ({
     page,
   }) => {

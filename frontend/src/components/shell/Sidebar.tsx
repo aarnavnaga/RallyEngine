@@ -43,7 +43,7 @@ const CREATOR_ITEMS: Item[] = [
 const ADMIN_ITEMS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/creators", label: "Experts", icon: TableProperties },
-  { href: "/admin/outreach", label: "Outreach", icon: Inbox },
+  { href: "/admin/outreach", label: "Inbox", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: TrendingUp },
 ];
 

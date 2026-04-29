@@ -509,8 +509,7 @@ function OutreachInner() {
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <h1 className="h-display text-[28px]">Outreach approval queue</h1>
-        <span className="text-[12px] text-[var(--fg-muted)]">Each deal: one chat with the creator, one chat with the brand. Aaron is the middle.</span>
+        <h1 className="h-display text-[28px]">Inbox</h1>
       </div>
 
       {/* Status tabs */}
@@ -1171,8 +1170,15 @@ function MessageBubble({ message, counterpartyName }: { message: Message; counte
 // ---------------------------------------------------------------------------
 // Quick-reply suggestion builder (3 chips above the input)
 // ---------------------------------------------------------------------------
+//
+// Suggestions are vibe-categorized: one positive (move forward / lock), one
+// negative (push back / decline / counter), one inquisitive (pivot / ask).
+// Labels are dynamic per turn — never the literal "Agree", "Counter", "Skip",
+// or "Decline" placeholder words. Vibe is what guarantees the chips give
+// Aaron a real choice no matter what the LLM picks for the wording.
 
-type Suggestion = { label: string; text: string };
+type SuggestionVibe = "positive" | "negative" | "inquisitive";
+type Suggestion = { label: string; text: string; vibe: SuggestionVibe };
 
 function staticSuggestions(deal: Deal, side: ChatSide, creator: Creator, brand: Brand): Suggestion[] {
   const partyName = side === "creator" ? creator.name.split(" ")[0] : brand.name;
@@ -1182,22 +1188,25 @@ function staticSuggestions(deal: Deal, side: ChatSide, creator: Creator, brand: 
   if (deal.stage === "outreach" || deal.stage === "negotiating") {
     return [
       {
-        label: "Counter on rate",
+        vibe: "positive",
+        label: "Lock the rate",
         text: side === "creator"
-          ? `${partyName} - we can stretch to $${(baseRate + 100).toLocaleString()} flat with the bonus structure on top. That's our ceiling for this campaign. Sound fair?`
-          : `${partyName} team - ${otherSide} is asking $${(baseRate + 100).toLocaleString()}. Given their fit score and audience overlap, I'd recommend we lock at this rate. Greenlight?`,
+          ? `${partyName} — terms work. Sending the contract now: $${baseRate.toLocaleString()} base + $${deal.contract?.bonus_per_block ?? 150} per 100K views over ${(deal.contract?.bonus_floor ?? 250_000).toLocaleString()}. Sample ships today.`
+          : `${partyName} — ${otherSide} accepts. Locking at $${baseRate.toLocaleString()} base + bonus structure. Sending the contract for countersign.`,
       },
       {
-        label: "Agree & lock",
+        vibe: "negative",
+        label: `Hold at $${baseRate.toLocaleString()}`,
         text: side === "creator"
-          ? `${partyName} - terms work. Sending the contract now: $${baseRate.toLocaleString()} base + $${deal.contract?.bonus_per_block ?? 150} per 100K views over ${(deal.contract?.bonus_floor ?? 250_000).toLocaleString()}. Sample ships today.`
-          : `${partyName} - ${otherSide} accepts. Locking at $${baseRate.toLocaleString()} base + bonus structure. Sending the contract for countersign.`,
+          ? `${partyName} — we can stretch to $${(baseRate + 100).toLocaleString()} flat with the bonus structure on top. That's our ceiling for this campaign. Worth it for the audience overlap?`
+          : `${partyName} team — ${otherSide} is asking more. Given their fit score and audience overlap, I'd hold at $${baseRate.toLocaleString()} base + bonus. Greenlight?`,
       },
       {
-        label: "Ask for details",
+        vibe: "inquisitive",
+        label: "Ask about cadence",
         text: side === "creator"
-          ? `${partyName} - want to make sure we're aligned. What's your typical posting cadence, and is there flexibility on the deliverable format (TikTok vs Reel vs both)?`
-          : `${partyName} team - one detail I want to confirm: any brand-voice guidelines or do-not-mention list we should hand to ${otherSide} before they post?`,
+          ? `${partyName} — quick check on cadence and deliverables. What's your typical posting window, and is the format flexible (TikTok vs. Reel vs. both)?`
+          : `${partyName} team — one detail I want to confirm before we lock: any brand-voice guidelines or do-not-mention list we should hand to ${otherSide} before they post?`,
       },
     ];
   }
@@ -1205,22 +1214,25 @@ function staticSuggestions(deal: Deal, side: ChatSide, creator: Creator, brand: 
   // offer-pending or signed
   return [
     {
+      vibe: "positive",
       label: "Confirm receipt",
       text: side === "creator"
-        ? `${partyName} - just confirming you got the contract email. Anything you want me to walk through before you sign?`
-        : `${partyName} team - just confirming the countersigned contract is on its way to your inbox. Anything else needed?`,
+        ? `${partyName} — just confirming you got the contract email. Anything you want me to walk through before you sign?`
+        : `${partyName} team — just confirming the countersigned contract is on its way to your inbox. Anything else needed?`,
     },
     {
+      vibe: "negative",
+      label: "Flag a tweak",
+      text: side === "creator"
+        ? `${partyName} — one thing on the contract: the exclusivity window feels tight. Open to extending it by a week to make the launch easier?`
+        : `${partyName} team — heads up: ${otherSide} flagged the exclusivity window as tight. Open to a week extension to reduce launch friction?`,
+    },
+    {
+      vibe: "inquisitive",
       label: "Schedule kickoff",
       text: side === "creator"
-        ? `${partyName} - want to set a 15-min kickoff Thursday to align on script and posting window?`
-        : `${partyName} team - shall we sync briefly on launch window and tracking pixels before ${otherSide} posts?`,
-    },
-    {
-      label: "Send post-launch report",
-      text: side === "creator"
-        ? `${partyName} - once the post is up I'll send you the comment-relevance report 48hrs after launch so you see what's landing.`
-        : `${partyName} team - we'll send a comment-relevance + sales-attribution report 48hrs after ${otherSide}'s post drops.`,
+        ? `${partyName} — want to set a 15-min kickoff Thursday to align on script and posting window?`
+        : `${partyName} team — shall we sync briefly on launch window and tracking pixels before ${otherSide} posts?`,
     },
   ];
 }

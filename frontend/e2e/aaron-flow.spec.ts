@@ -97,4 +97,65 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     }
     expect(real, "real console errors during the walk").toHaveLength(0);
   });
+
+  // Round-9 E7: lock in the round-8 D1 (footer hidden on admin) and
+  // round-7 C1 (PersonaGuard) so they can't quietly regress.
+  test("admin routes have no dead-link footer items", async ({ page }) => {
+    // Sign in as admin via localStorage so we don't repeat the landing flow.
+    await page.goto(`${BASE}/`);
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "mercor.identity.v1",
+        JSON.stringify({ persona: "admin" }),
+      );
+    });
+
+    const adminRoutes = [
+      "/admin",
+      "/admin/match",
+      "/admin/outreach",
+      "/admin/creators",
+      "/admin/campaigns",
+    ];
+    for (const route of adminRoutes) {
+      await page.goto(`${BASE}${route}`);
+      // Allow the page client-render to settle.
+      await page.waitForLoadState("networkidle");
+      const deadCount = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('a[href="#"]')).filter(
+          (a) => (a as HTMLElement).offsetParent !== null,
+        ).length;
+      });
+      expect(deadCount, `dead-link footer items visible on ${route}`).toBe(0);
+    }
+  });
+
+  test("creator persona is bounced from admin routes to /home", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE}/`);
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "mercor.identity.v1",
+        JSON.stringify({ persona: "creator" }),
+      );
+    });
+
+    const adminRoutes = [
+      "/admin",
+      "/admin/match",
+      "/admin/outreach",
+      "/admin/campaigns/celsius-college-q2",
+      "/admin/interviews/loganmann32",
+    ];
+    for (const route of adminRoutes) {
+      await page.goto(`${BASE}${route}`);
+      // PersonaGuard fires inside a useEffect, then router.replace.
+      await page.waitForURL(/\/home$/, { timeout: 5_000 });
+      expect(
+        new URL(page.url()).pathname,
+        `creator browsing ${route} should land on /home`,
+      ).toBe("/home");
+    }
+  });
 });

@@ -672,28 +672,120 @@ function DealRow({ deal, selected, onSelect, onAssignSpl }: DealRowProps) {
 
 /**
  * One-glance summary of the conversation state — derived locally from
- * the most recent counterparty turn + the deal stage. Synchronous so
- * the inbox renders instantly without waiting on an LLM call. The hook
- * wording mimics the kind of summary an LLM might generate (subject +
- * verb + object) so Aaron can skim without opening the thread.
+ * the deal's chat state, not by mangling raw message text. Each summary
+ * follows the shape "<state signal> · Awaiting <actor>" so Aaron can
+ * scan the inbox and instantly see whose court the ball is in.
+ *
+ * Old behaviour (replaced 2026-04-29): prefixed the creator's first
+ * name onto the brand's reply text, which produced strings like
+ * "Logan logan is exactly our college-ICP profile" because the brand
+ * reply itself already contained the creator's first name. The
+ * regex-strip of "Hey <name>," also missed brand replies that don't
+ * use that opener. Logan asked for short, dynamic, signal-rich
+ * summaries instead.
  */
-function synthesizeSummary(creator: Creator, brand: Brand, deal: Deal, preview: string | undefined): string {
-  if (deal.stage === "signed") {
-    return `Signed — comms moved to Slack. Briefing handoff with ${creator.name.split(" ")[0]} on launch window.`;
-  }
+function synthesizeSummary(
+  creator: Creator,
+  brand: Brand,
+  deal: Deal,
+  _preview: string | undefined,
+): string {
   const firstName = creator.name.split(" ")[0];
-  const trimmed = (preview ?? "").trim();
-  if (!trimmed) {
-    return `Drafted opener ready to send — ${brand.name} fit at ${(deal.similarity * 100).toFixed(0)}% on audience overlap.`;
+  const matchPct = Math.round(deal.similarity * 100);
+
+  if (deal.stage === "signed") {
+    return `Signed · contract executed, comms moved to Slack briefing channel.`;
   }
-  // Lowercase first character, strip the formal greeting Aaron's drafts
-  // usually start with so the summary reads as "X is asking about Y".
-  const cleaned = trimmed
-    .replace(/^Hey [^\-]+-\s*/i, "")
-    .replace(/^Hey [^,]+,\s*/i, "")
-    .replace(/^[A-Z]/, (c) => c.toLowerCase());
-  const short = cleaned.length > 130 ? `${cleaned.slice(0, 127)}…` : cleaned;
-  return `${firstName} ${short}`;
+
+  const lastCreatorMsg =
+    deal.creatorChat.messages[deal.creatorChat.messages.length - 1];
+  const lastBrandMsg =
+    deal.brandChat.messages[deal.brandChat.messages.length - 1];
+  const creatorReplied = lastCreatorMsg?.from === "creator";
+  const brandReplied = lastBrandMsg?.from === "brand";
+  const aaronSentToCreator = deal.creatorChat.messages.some(
+    (m) => m.from === "aaron",
+  );
+  const aaronSentToBrand = deal.brandChat.messages.some(
+    (m) => m.from === "aaron",
+  );
+
+  // Nothing sent yet — we only have a draft opener.
+  if (!aaronSentToCreator && !aaronSentToBrand) {
+    return `Draft opener queued · ${matchPct}% audience match with ${brand.name}. Awaiting your send.`;
+  }
+
+  // Outbound, no replies yet.
+  if (!creatorReplied && !brandReplied) {
+    return `Outreach sent · ${matchPct}% match. Awaiting first reply.`;
+  }
+
+  const brandSignal = brandReplied
+    ? extractBrandSignal(lastBrandMsg.text, brand)
+    : null;
+  const creatorSignal = creatorReplied
+    ? extractCreatorSignal(lastCreatorMsg.text)
+    : null;
+
+  // Both sides replied — call out who agreed and what's left.
+  if (brandSignal && creatorSignal) {
+    return `${brandSignal} · ${firstName} ${creatorSignal} · Awaiting your countersign.`;
+  }
+  // Brand replied, creator hasn't.
+  if (brandSignal) {
+    return `${brandSignal} · Awaiting ${firstName}'s reply.`;
+  }
+  // Creator replied, brand hasn't.
+  if (creatorSignal) {
+    return `${firstName} ${creatorSignal} · Awaiting ${brand.name} to greenlight.`;
+  }
+  return `Outreach in flight · ${matchPct}% match. Awaiting reply.`;
+}
+
+/** Pulls a short brand-side signal from the last brand reply text.
+ *  Looks for a quoted dollar rate, exclusivity counter, greenlight, or
+ *  "reviewing internally" pattern. Falls back to a generic "<Brand>
+ *  responded" so the summary always ends with a noun phrase. */
+function extractBrandSignal(text: string, brand: Brand): string {
+  const dollarMatch = text.match(/\$\s?([\d,]+)/);
+  const rate = dollarMatch ? `$${dollarMatch[1].replace(/,/g, "")}` : null;
+  const dayMatch = text.match(/(\d+)[-\s]?day/i);
+  const days = dayMatch ? Number(dayMatch[1]) : null;
+  const greenlight = /greenlight|lock|approve|locking/i.test(text);
+  const reviewing = /review(ing)?\s+(internally|the\s+draft|against)/i.test(text);
+  const counter = /counter|push back/i.test(text);
+  const exclusivityAsk = /tighten\s+exclusivity|exclusivity\s+to/i.test(text);
+
+  if (greenlight && rate) return `${brand.name} greenlit at ${rate}`;
+  if (exclusivityAsk && days && rate) {
+    return `${brand.name} wants ${days}-day exclusive at ${rate}`;
+  }
+  if (counter && rate) return `${brand.name} countered ${rate}`;
+  if (greenlight) return `${brand.name} ready to lock`;
+  if (rate) return `${brand.name} quoted ${rate}`;
+  if (reviewing) return `${brand.name} reviewing internally`;
+  return `${brand.name} responded`;
+}
+
+/** Pulls a short creator-side signal from the last creator reply text.
+ *  Detects the most common creator asks: product-first, exclusivity,
+ *  creative angle, timeline, and counter-rate. Returns a verb phrase
+ *  ready to follow the creator's first name (e.g. "wants product
+ *  before posting"). */
+function extractCreatorSignal(text: string): string {
+  if (/product\s+first|ship\s+product|product\s+before|cover\s+shipping/i.test(text)) {
+    return "wants product first before posting";
+  }
+  if (/exclusiv/i.test(text)) return "asking about exclusivity";
+  if (/morning|format|angle|combo|gym\s+clip/i.test(text)) {
+    return "pitched a creative angle";
+  }
+  if (/timeline|when|schedule|posting/i.test(text)) {
+    return "asking about timeline";
+  }
+  const dollar = text.match(/\$\s?([\d,]+)/);
+  if (dollar) return `countered at $${dollar[1].replace(/,/g, "")}`;
+  return "responded";
 }
 
 interface AssignSplControlProps {

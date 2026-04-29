@@ -145,6 +145,73 @@ function aggregateCheating(scores: InterviewFrameScore[]): CheatingLevel {
   return sawAnyLow ? "low" : "none";
 }
 
+// Gemini summary generation. Uses the same key + endpoint pattern as
+// /api/interview/turn so we don't add a second integration. We pass the
+// full transcript + score aggregates and ask for a verifiable, recruiter-
+// facing summary that quotes specific candidate phrases. On any failure
+// we fall back to the deterministic synthetic summary in `aggregate`.
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+async function geminiSummary(
+  transcript: InterviewMessage[],
+  meanConf: number,
+  meanEng: number,
+  cheating: CheatingLevel,
+  campaignTitle: string,
+): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  if (transcript.filter((m) => m.role === "user").length === 0) return null;
+
+  const transcriptText = transcript
+    .map((m) => `${m.role === "assistant" ? "Interviewer" : "Candidate"}: ${m.content}`)
+    .join("\n");
+
+  const systemText = [
+    `You are a Mercor recruiting analyst summarizing an AI video interview for the "${campaignTitle}" creator-economy role.`,
+    "Write a 3-4 sentence verifiable summary aimed at a hiring manager (Aaron, Strategic Ops at Mercor).",
+    "Rules:",
+    "- Quote one short phrase the candidate actually said in the transcript (use double quotes).",
+    "- Reference at least one specific detail they shared: a brand, a number, a platform, an audience demo.",
+    "- Note where they were specific vs. vague.",
+    "- End with a one-line recommendation: 'Advance', 'Borderline', or 'Pass', followed by a one-clause why.",
+    "- Plain English, no corporate jargon, no preamble like 'In summary'.",
+    "Tone: how Aaron's debate kids talked when they had a clean case. No hedging.",
+  ].join("\n");
+
+  const ctxLine = `Aggregate scores — confidence ${(meanConf * 100).toFixed(0)}%, engagement ${(meanEng * 100).toFixed(0)}%, integrity flag: ${cheating}.`;
+  const userText = [ctxLine, "", "Transcript:", transcriptText].join("\n");
+
+  try {
+    const resp = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemText }] },
+        contents: [{ role: "user", parts: [{ text: userText }] }],
+        generationConfig: { temperature: 0.55, maxOutputTokens: 320, topP: 0.9 },
+      }),
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!resp.ok) return null;
+    interface GeminiResp {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    }
+    const data = (await resp.json()) as GeminiResp;
+    const text = data.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text ?? "")
+      .join(" ")
+      .trim();
+    return text && text.length > 20 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 function aggregate(
   scores: InterviewFrameScore[],
   transcript: InterviewMessage[],
@@ -271,7 +338,19 @@ export async function POST(
     return NextResponse.json({ error: "missing required fields" }, { status: 400 });
   }
 
-  const summary = aggregate(body.scores, body.transcript);
+  const stats = aggregate(body.scores, body.transcript);
+
+  // Try to upgrade the synthetic summary with a real Gemini-generated one
+  // that quotes the candidate. Falls back to the deterministic synthetic
+  // text on any failure (no key, timeout, empty response).
+  const llm = await geminiSummary(
+    body.transcript,
+    stats.confidence,
+    stats.engagement,
+    stats.cheating,
+    body.campaignTitle,
+  );
+  const summary: InterviewSummary = llm ? { ...stats, summary: llm } : stats;
 
   const record: InterviewRecord = {
     creatorId: body.creatorId,

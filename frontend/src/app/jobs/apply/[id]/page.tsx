@@ -89,6 +89,34 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
   const [pageOf, setPageOf] = useState(0);
   const [useTextInterview, setUseTextInterview] = useState<boolean>(false);
 
+  // Cached interview record so we don't loop the candidate through the
+  // interview again after they finish, navigate off, and come back. The
+  // VideoInterviewStep persists to localStorage on finalize; we mirror that
+  // here so the apply page stepper knows the interview was already done.
+  const INTERVIEW_KEY = `mercor.interview.${LOGAN.id}.v1`;
+  type CachedInterview = {
+    transcript?: { role: "user" | "assistant"; content: string; ts: string }[];
+    summary?: string;
+    finishedAt?: string;
+    campaignId?: string;
+    campaignTitle?: string;
+    scores?: { confidence: number; engagement: number; cheating: string }[];
+  };
+  const [cachedInterview, setCachedInterview] = useState<CachedInterview | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(INTERVIEW_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as CachedInterview;
+      setCachedInterview(parsed);
+      setDone((d) => ({ ...d, interview: true }));
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const completedSteps = useMemo(
     () => Object.values(done).filter(Boolean).length,
     [done],
@@ -195,14 +223,41 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
           />
         ) : null}
 
-        {activeStep === "interview" && !useTextInterview ? (
+        {activeStep === "interview" && !useTextInterview && !cachedInterview ? (
           <VideoInterviewStep
             creatorId={LOGAN.id}
             campaignId={c.id}
             campaignTitle={c.title}
             done={done.interview}
-            onComplete={() => setDone((d) => ({ ...d, interview: true }))}
+            onComplete={() => {
+              setDone((d) => ({ ...d, interview: true }));
+              // Re-read the cache the VideoInterviewStep just wrote so the
+              // page swaps to the summary card on the next render and the
+              // candidate doesn't get looped through the interview again.
+              try {
+                const raw = window.localStorage.getItem(INTERVIEW_KEY);
+                if (raw) setCachedInterview(JSON.parse(raw));
+              } catch {
+                // ignore
+              }
+            }}
             onFallbackToText={() => setUseTextInterview(true)}
+          />
+        ) : null}
+
+        {activeStep === "interview" && cachedInterview ? (
+          <InterviewCompletedCard
+            cached={cachedInterview}
+            currentCampaignTitle={c.title}
+            onRetake={() => {
+              try {
+                window.localStorage.removeItem(INTERVIEW_KEY);
+              } catch {
+                // ignore
+              }
+              setCachedInterview(null);
+              setDone((d) => ({ ...d, interview: false }));
+            }}
           />
         ) : null}
 
@@ -519,6 +574,139 @@ function CreatorInterviewStep({
           ✓ Interview complete - go to the bottom of the page and click Submit.
         </p>
       ) : null}
+    </div>
+  );
+}
+
+// One-time interview lives on the candidate's profile, not the application,
+// so once Logan's submitted his Creator Interview every subsequent
+// application reuses the same recording. We render a clean summary card
+// instead of looping him through the AI interviewer again. Recruiters see
+// the full transcript + scores in /admin/interviews/<creatorId>.
+function InterviewCompletedCard({
+  cached,
+  currentCampaignTitle,
+  onRetake,
+}: {
+  cached: {
+    transcript?: { role: "user" | "assistant"; content: string; ts: string }[];
+    summary?: string;
+    finishedAt?: string;
+    campaignTitle?: string;
+    scores?: { confidence: number; engagement: number; cheating: string }[];
+  };
+  currentCampaignTitle: string;
+  onRetake: () => void;
+}) {
+  const turns = cached.transcript?.length ?? 0;
+  const userTurns = cached.transcript?.filter((m) => m.role === "user").length ?? 0;
+  const date = cached.finishedAt
+    ? new Date(cached.finishedAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
+  const recordedFor = cached.campaignTitle && cached.campaignTitle !== currentCampaignTitle;
+  const meanConfidence = cached.scores?.length
+    ? Math.round(
+        (cached.scores.reduce((acc, s) => acc + s.confidence, 0) / cached.scores.length) * 100,
+      )
+    : null;
+  const meanEngagement = cached.scores?.length
+    ? Math.round(
+        (cached.scores.reduce((acc, s) => acc + s.engagement, 0) / cached.scores.length) * 100,
+      )
+    : null;
+  return (
+    <div data-test-id="interview-completed-card">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[20px] font-semibold tracking-tight">Creator Interview</h3>
+        <span className="pill pill-success text-[11px]">✓ Submitted</span>
+      </div>
+      <p className="mt-2 max-w-[640px] text-[13px] leading-[1.6] text-[var(--fg-muted)]">
+        Mercor has your AI interview on file from {date}. Your answers and scoring are
+        reused across applications — you only take this once.
+        {recordedFor ? (
+          <span>
+            {" "}
+            (Originally recorded for{" "}
+            <span className="font-medium text-[var(--fg)]">{cached.campaignTitle}</span>.)
+          </span>
+        ) : null}
+      </p>
+
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5">
+          <div className="label-cap">Turns</div>
+          <div className="mt-0.5 text-[15px] font-semibold">{turns}</div>
+          <div className="text-[11px] text-[var(--fg-muted)]">{userTurns} from you</div>
+        </div>
+        <div className="rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5">
+          <div className="label-cap">Confidence</div>
+          <div className="mt-0.5 text-[15px] font-semibold">
+            {meanConfidence != null ? `${meanConfidence}%` : "—"}
+          </div>
+          <div className="text-[11px] text-[var(--fg-muted)]">Mean across frames</div>
+        </div>
+        <div className="rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5">
+          <div className="label-cap">Engagement</div>
+          <div className="mt-0.5 text-[15px] font-semibold">
+            {meanEngagement != null ? `${meanEngagement}%` : "—"}
+          </div>
+          <div className="text-[11px] text-[var(--fg-muted)]">Mean across frames</div>
+        </div>
+        <div className="rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5">
+          <div className="label-cap">Status</div>
+          <div className="mt-0.5 text-[15px] font-semibold text-[var(--success)]">Submitted</div>
+          <div className="text-[11px] text-[var(--fg-muted)]">{date}</div>
+        </div>
+      </div>
+
+      {cached.summary ? (
+        <div className="mt-5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] p-4">
+          <div className="label-cap">AI summary</div>
+          <p className="mt-1 text-[13px] leading-[1.5] text-[var(--fg)]">{cached.summary}</p>
+        </div>
+      ) : null}
+
+      {cached.transcript && cached.transcript.length > 0 ? (
+        <details className="mt-4 rounded-md border border-[var(--border)] bg-[var(--bg-card)]">
+          <summary className="cursor-pointer px-4 py-3 text-[13px] font-medium">
+            View transcript ({turns} turns)
+          </summary>
+          <ol className="space-y-3 px-4 pb-4">
+            {cached.transcript.map((m, i) => (
+              <li key={i} className="text-[13px]">
+                <span
+                  className={
+                    m.role === "assistant"
+                      ? "font-medium text-[var(--accent)]"
+                      : "font-medium text-[var(--fg-muted)]"
+                  }
+                >
+                  {m.role === "assistant" ? "Interviewer" : "You"}:{" "}
+                </span>
+                <span className="text-[var(--fg)]">{m.content}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+
+      <div className="mt-5 flex gap-2">
+        <button
+          type="button"
+          onClick={onRetake}
+          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-[12px] hover:bg-[var(--bg-hover)]"
+          data-test-id="interview-retake"
+        >
+          Retake interview
+        </button>
+        <p className="ml-1 self-center text-[11px] text-[var(--fg-muted)]">
+          Retakes are reserved for technical issues.
+        </p>
+      </div>
     </div>
   );
 }

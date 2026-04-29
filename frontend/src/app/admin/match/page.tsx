@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronUp, ExternalLink, Sparkles } from "lucide-react";
 import { CREATORS, CREATORS_BY_ID, type Creator } from "@/lib/data/creators";
@@ -438,6 +439,14 @@ function DetailPane({
             </tr>
           </tbody>
         </table>
+
+        <Link
+          href={`/admin/interviews/${creator.id}`}
+          data-test-id={`match-view-interview-${creator.id}`}
+          className="mt-5 inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-medium text-[var(--fg)] hover:bg-[var(--bg-hover)]"
+        >
+          View AI interview →
+        </Link>
 
         <div className="mt-5 label-cap">Suggested pay breakdown</div>
         <table className="mt-2 w-full text-[12px]">

@@ -128,10 +128,13 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     // was dropped in D2; the /favicon.ico 404 was fixed in I3 (real ICO at
     // app/favicon.ico, content-type image/x-icon). Anything else (a real
     // script error, a 500 from /api/*, a missing module) should fail.
+    // Google's favicon proxy is also served from t0-t3.gstatic.com/faviconV2
+    // for some clients (matched by hostname pattern).
     const benign = (e: { text: string; url: string }) => {
       const blob = `${e.text} ${e.url}`;
       return (
         blob.includes("google.com/s2/favicons") ||
+        /t\d\.gstatic\.com\/faviconV2/.test(blob) ||
         blob.includes("logo.clearbit.com")
       );
     };

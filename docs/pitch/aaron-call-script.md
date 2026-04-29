@@ -75,11 +75,71 @@
 
 ---
 
-## SLIDE 6 — Demo — Logan, ~10s + 3 min walkthrough
+## SLIDE 6 — Demo — Logan, ~10s
 
-> "That's the case. The demo's the rest of it. I'll walk it as a creator first — me, real 22.7K TikTok — then switch to your account in admin and show you the match workbench citing my actual posts back by URL."
+> "That's the case. The demo's the rest of it. I'll walk it as a creator first — me, real 22.7K TikTok — then switch to your account in admin."
 
 **Live at:** `musing-maxwell-84ed29.vercel.app`
+
+---
+
+## DEMO — Logan, ~3 min total
+
+Format: **[click]** = what Logan does. *Italic* = what Logan says. Bracketed UI cues are landmarks Aaron should see.
+
+### Part 1 — Logan as creator (~90s)
+
+**[click]** Top-right persona dropdown → **Sign in as Logan Mann**. Lands on `/explore`.
+
+> *"Your Explore page. Same grid you use today. Look at the Domain filter — we added one row: Creators & Influencers. The cards are real brand campaigns. Celsius, Bucked Up, Bloom, Ghost — all advertising on TikTok today."*
+
+**[click]** Celsius card. Right-rail panel slides in.
+
+> *"Right-rail panel — your exact pattern. Posted by Celsius. Application checklist: Resume, social connect, creator interview, work auth. Your stepper. Different question bank."*
+
+**[click]** `Continue Application` → stepper Step 2: **Connect TikTok**.
+
+> *"I'm signed in as me — @loganmann32, real account, 22.7K followers, 411K likes."*
+
+**[click]** Submit through the rest of the steps fast. Land on confetti page.
+
+> *"Your existing UI. New Domain. Zero new code on your side."*
+
+**[click]** Sidebar → `Referrals`.
+
+> *"412 friends just got pulled in from my TikTok and Instagram. Most of them are STEM kids at UCSB and Stanford — your exact ICP for the 1,000-a-week hiring funnel. Same Mercor referrals UI. TikTok and IG icons instead of LinkedIn."*
+
+> *"This is the meta-moat: every creator I onboard brings their network into Mercor's hiring pipeline. The same audience watching my gym TikToks is the audience you're paying Meta to find."*
+
+### Part 2 — Switch to Aaron as Mercor admin (~90s)
+
+**[click]** Avatar dropdown → **Switch to Aaron Langerman**. Lands on `/admin`.
+
+> *"Now I'm signed in as you. KPIs across the top — 12 active campaigns, 38 pending applicants, $24K GMV last 7 days. Mercor's dashboard pattern."*
+
+**[click]** Sidebar → `Match`. Pick **Celsius** from the brand dropdown.
+
+> *"Manual matching workbench. Pick Celsius. Top creator: Logan Mann. Similarity 0.91. Impact 87. Suggested $850 per post."*
+
+**[click]** Expand the Logan row. Rationale paragraph appears.
+
+> *"Watch this. The rationale cites my actual posts back by URL — `tiktok.com/@loganmann32/video/7608429326211501326` — the 'Average quant' video. Hashtags `#janestreet #math #quant #ucsb` quoted as the audience-overlap signal. No black box. Brendan's bar."*
+
+**[click]** Pick 5 creators → `Generate outreach`. Lands on `/admin/outreach`.
+
+> *"Haiku drafted the first message. Cites my Average-quant video and Celsius's college-ICP ad copy. Approve sends. Edit fine-tunes."*
+
+**[click]** Open an in-flight haggler. Type **"$700?"** in the reply box. Wait ~4s.
+
+> *(reply lands)* *"'Could do $800 if you cover shipping.' Persona-aware sim. The CRM at 1,000-hires-a-week scale, just for the brand side."*
+
+**[click]** Sidebar → `/admin/campaigns/[id]`. Live perf curve ticking.
+
+> *"Live campaign. Views ticking every 8 seconds. Comment relevance 38%. Sales 4. Invoice: $400 base + $310 relevant-eyes bonus = $710. Payout grounded in comment relevance, not just sales. Fair to creator and brand."*
+
+### Close — Logan, ~10s
+
+> *"Real creator, real brands, real RAG citing real posts, transparent pricing, persona-aware ops. Mercor's UI. Half a day of integration. That's the case."*
 
 ---
 

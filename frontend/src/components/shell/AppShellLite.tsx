@@ -16,7 +16,7 @@ export function AppShellLite({ children }: { children: React.ReactNode }) {
         >
           ← Go back
         </Link>
-        <div className="text-[14px] font-medium tracking-tight text-[var(--accent)]">Mercor</div>
+        <div aria-hidden="true" />
         <div className="flex items-center gap-3">
           <button className="text-[13px] text-[var(--fg-muted)] hover:text-[var(--fg)]">
             FAQ

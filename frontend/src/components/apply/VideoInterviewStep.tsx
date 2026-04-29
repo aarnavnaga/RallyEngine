@@ -736,18 +736,35 @@ export function VideoInterviewStep({
     }
 
     setPermissions({ audio, video });
-    if (videoRef.current && streamRef.current && video) {
-      videoRef.current.srcObject = streamRef.current;
-      // Mute the local element to avoid feedback.
-      videoRef.current.muted = true;
-      try {
-        await videoRef.current.play();
-      } catch {
-        // Autoplay may be blocked; user gesture below will retry.
-      }
-    }
+    // Note: we do NOT bind streamRef → videoRef here, because the <video>
+    // element only mounts after phase flips to "ready" (CameraTile is
+    // conditionally rendered). The bindStreamToVideoEl effect below handles
+    // the actual srcObject attach once the element exists.
     setPhase("ready");
   }, [attachTrackEndedListeners]);
+
+  // Bind the captured MediaStream to the <video> element once it mounts.
+  // CameraTile only renders for phase ∈ {ready, interviewing, thinking,
+  // finished}, so we re-run this whenever phase or permissions.video change.
+  // Without this, requestPermissions() sees videoRef.current === null (the
+  // element hasn't mounted yet) and the preview stays black even though the
+  // stream is live.
+  useEffect(() => {
+    if (!permissions.video) return;
+    const stream = streamRef.current;
+    const el = videoRef.current;
+    if (!stream || !el) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    el.muted = true;
+    el.playsInline = true;
+    // play() can reject if autoplay is blocked or the element is detached;
+    // both are non-fatal — the user can click into the page to retry.
+    void el.play().catch(() => {
+      /* autoplay blocked — user gesture will retry */
+    });
+  }, [permissions.video, phase]);
 
   const startInterview = useCallback(async (): Promise<void> => {
     setPhase("thinking");
@@ -1031,6 +1048,7 @@ function CameraTile({
         {permissions.video ? (
           <video
             ref={videoRef}
+            autoPlay
             playsInline
             muted
             className="h-full w-full object-cover"

@@ -206,12 +206,33 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
               type="button"
               onClick={() => {
                 const idx = STEPS.findIndex((s) => s.id === activeStep);
-                if (idx < STEPS.length - 1) setActiveStep(STEPS[idx + 1].id);
+                // Normal advance: go to the next step if there is one.
+                if (idx < STEPS.length - 1) {
+                  setActiveStep(STEPS[idx + 1].id);
+                  return;
+                }
+                // We're already on the last step but other steps are
+                // incomplete. Jump back to the first incomplete one so the
+                // candidate can finish what's left — without this branch the
+                // Next button silently no-ops and the user is stuck after
+                // completing the interview but skipping socials.
+                const firstIncomplete = STEPS.find((s) => !done[s.id]);
+                if (firstIncomplete && firstIncomplete.id !== activeStep) {
+                  setActiveStep(firstIncomplete.id);
+                }
               }}
               className="btn-primary"
               data-test-id="apply-next"
             >
-              Next
+              {(() => {
+                const idx = STEPS.findIndex((s) => s.id === activeStep);
+                if (idx < STEPS.length - 1) return "Next";
+                const firstIncomplete = STEPS.find((s) => !done[s.id]);
+                if (firstIncomplete && firstIncomplete.id !== activeStep) {
+                  return `Finish ${firstIncomplete.label}`;
+                }
+                return "Next";
+              })()}
             </button>
           )}
         </div>

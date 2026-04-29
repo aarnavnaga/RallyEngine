@@ -48,8 +48,14 @@ function LoginDropdown({ onClose }: { onClose: () => void }) {
         data-test-id="landing-nav-login-creator"
         className="flex w-full items-center gap-3 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-[var(--fg)] hover:bg-[var(--bg-hover)]"
       >
-        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-bold text-[var(--accent)]">
-          L
+        <span className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-[var(--border)]">
+          <Image
+            src="/avatars/loganmann32.jpg"
+            alt="Logan Mann"
+            fill
+            sizes="28px"
+            className="object-cover"
+          />
         </span>
         <span>I am a creator <span className="text-[var(--fg-muted)]">(Logan)</span></span>
       </button>
@@ -59,8 +65,14 @@ function LoginDropdown({ onClose }: { onClose: () => void }) {
         data-test-id="landing-nav-login-admin"
         className="flex w-full items-center gap-3 rounded-[8px] px-3 py-2.5 text-left text-[13px] text-[var(--fg)] hover:bg-[var(--bg-hover)]"
       >
-        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[var(--bg-hover)] text-[11px] font-bold text-[var(--fg)]">
-          A
+        <span className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-[var(--border)]">
+          <Image
+            src="/aaron.jpg"
+            alt="Aaron Langerman"
+            fill
+            sizes="28px"
+            className="object-cover"
+          />
         </span>
         <span>I am on the Mercor team <span className="text-[var(--fg-muted)]">(Aaron)</span></span>
       </button>

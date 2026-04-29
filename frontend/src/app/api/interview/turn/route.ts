@@ -85,13 +85,58 @@ function systemPromptFor(title: string, slug: string): string {
   ].join("\n");
 }
 
-const FALLBACK_TURNS: string[] = [
-  "Welcome, I'm your Mercor interviewer for this session. Let's start easy: tell me about a recent post you put out that worked. What was the hook, and why do you think it landed?",
-  "Got it. And who actually watches you? If I scrolled the comments on that post right now, what would the audience look like, age, geo, what they're there for?",
-  "Interesting. Now flip it: name one brand you would NEVER partner with, and one that would be a perfect fit. I want to hear the reasoning, not just the names.",
-  "Okay. Same brand you just named as a perfect fit. Walk me through how you'd price a single TikTok post for them. Talk me through the math, not just the number.",
-  "Last one. What's a creator-economy take you have that you think most people get wrong?",
-  "Thanks, that's the interview. You'll hear back from Mercor within a few days. Feel free to end the call.",
+// The "scripted" path is the no-API-key fallback — the demo runs on Vercel
+// without GEMINI_API_KEY, so we have to make this path feel responsive
+// without an LLM. Each TOPIC has the question text plus a "nudge" the AI
+// uses if the candidate's answer was too thin to advance on. We add a
+// quoted-phrase reactive opener built from the user's actual last answer
+// so the conversation isn't a fixed canned loop.
+interface Topic {
+  // Used when this is the very first turn (no user answer yet).
+  intro?: string;
+  // The actual question for this topic.
+  question: string;
+  // What to say if the previous answer was too thin to advance the arc.
+  // null = always advance (used on open + close).
+  nudge: string | null;
+}
+
+const TOPIC_ARC: Topic[] = [
+  {
+    intro: "Welcome, I'm your Mercor interviewer for this session.",
+    question:
+      "Let's start easy: tell me about a recent post you put out that worked. What was the hook, and why do you think it landed?",
+    nudge: null,
+  },
+  {
+    question:
+      "Who actually watches you? If I scrolled the comments on that post right now, what would the audience look like — age, geo, what they're there for?",
+    nudge:
+      "I want a bit more there. Pick one detail and go deeper — was it the first two seconds, the audio, the caption, the cut? Something specific.",
+  },
+  {
+    question:
+      "Now flip it: name one brand you would never partner with, and one that would be a perfect fit. I want the reasoning, not just the names.",
+    nudge:
+      "Stay with me on the audience. Who's the typical person scrolling your comments — what else do they watch, what else do they post?",
+  },
+  {
+    question:
+      "Walk me through how you'd price a single TikTok post for that perfect-fit brand. The math, not just the number.",
+    nudge:
+      "Push me on the brand fit. Why that specific brand, and not the next one in the same category?",
+  },
+  {
+    question:
+      "Last one: what's a creator-economy take you have that you think most people get wrong?",
+    nudge:
+      "Walk me through the pricing math. How do you actually arrive at the number — followers, engagement, exclusivity, what?",
+  },
+  {
+    intro: "Thanks, that's the interview.",
+    question: "You'll hear back from Mercor within a few days. Feel free to end the call.",
+    nudge: null,
+  },
 ];
 
 function isDoneSignal(text: string): boolean {
@@ -104,13 +149,111 @@ function isDoneSignal(text: string): boolean {
   );
 }
 
+// Returns true if the answer is substantive enough to advance the topic arc.
+// "hello", "hello hello hello", "yeah", "idk" → false. Two real sentences → true.
+function isSubstantive(answer: string): boolean {
+  const trimmed = answer.trim();
+  if (trimmed.length < 12) return false;
+  const words = trimmed
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}']/gu, ""))
+    .filter((w) => w.length > 1);
+  if (words.length < 4) return false;
+  const lower = words.map((w) => w.toLowerCase());
+  const unique = new Set(lower);
+  // Repeating the same word ("hello hello hello hello") shouldn't pass.
+  if (unique.size < 3) return false;
+  // Filler-only answers shouldn't pass either.
+  const FILLER = new Set([
+    "hi",
+    "hey",
+    "hello",
+    "yeah",
+    "yes",
+    "no",
+    "ok",
+    "okay",
+    "idk",
+    "um",
+    "uh",
+    "like",
+  ]);
+  const meaningful = lower.filter((w) => !FILLER.has(w));
+  if (meaningful.length < 3) return false;
+  return true;
+}
+
+// Builds a short reactive opener that quotes a snippet of the last answer.
+// Empty → no opener. Thin → a generic "Okay." / "Got it." Substantive →
+// a quoted slice of their words plus a transition phrase. Keep these
+// SHORT — TTS reads them out loud at the top of the next question.
+function reactiveOpener(answer: string, transition: string): string {
+  const trimmed = answer.trim().replace(/\s+/g, " ");
+  if (!trimmed) return "";
+  if (!isSubstantive(trimmed)) {
+    // Thin answer that we're advancing past anyway (e.g. on the close turn).
+    return "Got it.";
+  }
+  // Pull a 4-9 word slice for the quote.
+  const words = trimmed.split(" ");
+  const sliceLen = Math.min(9, Math.max(4, Math.floor(words.length / 2)));
+  let slice = words.slice(0, sliceLen).join(" ").replace(/[",.!?;:]+$/, "");
+  if (slice.length > 70) {
+    slice = slice.slice(0, 70).replace(/\s+\S*$/, "");
+  }
+  return `"${slice}" — ${transition}.`;
+}
+
 function scriptedTurn(messages: ChatMessage[]): TurnResponse {
-  const userTurns = messages.filter((m) => m.role === "user").length;
-  const idx = Math.min(userTurns, FALLBACK_TURNS.length - 1);
-  const next = FALLBACK_TURNS[idx];
+  const userMessages = messages.filter((m) => m.role === "user");
+  const userTurns = userMessages.length;
+  const lastUserAnswer = userMessages[userMessages.length - 1]?.content ?? "";
+
+  // Turn 0 — no user answer yet. Open with the welcome + Q1.
+  if (userTurns === 0) {
+    const t = TOPIC_ARC[0];
+    const msg = [t.intro, t.question].filter(Boolean).join(" ");
+    return { message: msg, done: false, mode: "scripted" };
+  }
+
+  // The candidate just answered the question for topic (userTurns - 1).
+  // If that answer was thin AND the topic has a nudge, stay on it.
+  const previousTopicIdx = userTurns - 1;
+  const previousTopic = TOPIC_ARC[Math.min(previousTopicIdx, TOPIC_ARC.length - 1)];
+  if (
+    previousTopic.nudge &&
+    !isSubstantive(lastUserAnswer) &&
+    previousTopicIdx < TOPIC_ARC.length - 1
+  ) {
+    // Re-prompt on the same topic with a personalized nudge.
+    const opener = reactiveOpener(lastUserAnswer, "stay with me");
+    const msg = opener ? `${opener} ${previousTopic.nudge}` : previousTopic.nudge;
+    return { message: msg, done: false, mode: "scripted" };
+  }
+
+  // Otherwise advance to the next topic and react to what they said.
+  const nextTopicIdx = Math.min(userTurns, TOPIC_ARC.length - 1);
+  const nextTopic = TOPIC_ARC[nextTopicIdx];
+  const isClose = nextTopicIdx === TOPIC_ARC.length - 1;
+
+  // Pick a transition phrase that varies by topic so consecutive turns don't
+  // all start with "okay."
+  const TRANSITIONS = ["okay", "got it", "interesting", "fair", "alright"];
+  const transition = TRANSITIONS[nextTopicIdx % TRANSITIONS.length];
+  const opener = isClose ? "" : reactiveOpener(lastUserAnswer, transition);
+
+  let msg: string;
+  if (isClose) {
+    msg = [nextTopic.intro, nextTopic.question].filter(Boolean).join(" ");
+  } else if (opener) {
+    msg = `${opener} ${nextTopic.question}`;
+  } else {
+    msg = nextTopic.question;
+  }
+
   return {
-    message: next,
-    done: idx >= FALLBACK_TURNS.length - 1,
+    message: msg,
+    done: isClose,
     mode: "scripted",
   };
 }

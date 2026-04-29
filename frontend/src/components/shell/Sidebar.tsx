@@ -18,6 +18,7 @@ import {
   User as UserIcon,
   LayoutDashboard,
   TableProperties,
+  Sparkles,
   Inbox,
   TrendingUp,
 } from "lucide-react";
@@ -43,6 +44,7 @@ const CREATOR_ITEMS: Item[] = [
 const ADMIN_ITEMS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/creators", label: "Experts", icon: TableProperties },
+  { href: "/admin/match", label: "Match", icon: Sparkles },
   { href: "/admin/outreach", label: "Inbox", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: TrendingUp },
 ];

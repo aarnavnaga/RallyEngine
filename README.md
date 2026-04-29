@@ -1,6 +1,6 @@
 # Mercor demo — `musing-maxwell-84ed29.vercel.app`
 
-Live demo for the **Aaron Langerman pitch** that positions a new `Creators & Influencers` expert vertical inside Mercor's existing marketplace. Mirrors `work.mercor.com` 1:1 in look and feel; same Explore grid, same application stepper, same contracts, same Stripe earnings, same Referrals — just a new domain row and new humans (creators + influencers).
+Live demo for the **Aaron Langerman pitch** that positions a new `Creators & Influencers` expert vertical inside Mercor's existing marketplace. Mirrors `work.mercor.com` 1:1 in look and feel; same Explore grid, same application stepper, same contracts, same Stripe earnings, same Referrals — just a new domain row and new experts (creators + influencers).
 
 > **Hi Arnav** — this README is your full onboarding. Read it top-to-bottom and you'll be able to run the demo, edit any page, push a PR, and ship by yourself. Auto-updated by a 24/7 bot on every push.
 

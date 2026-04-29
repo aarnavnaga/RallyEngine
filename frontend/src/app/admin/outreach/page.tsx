@@ -71,14 +71,17 @@ type Deal = {
  * Mercor SPL roster surfaced in the Assign dropdown. These are example
  * Strategic Project Leads from Mercor's existing operations team that
  * Aaron can hand individual contracts to.
+ *
+ * Kept module-local (not exported) because Next.js page files only allow
+ * a small set of named exports; helpers live alongside the component.
  */
-export interface SplPerson {
+interface SplPerson {
   id: string;
   name: string;
   title: string;
 }
 
-export const MERCOR_SPLS: SplPerson[] = [
+const MERCOR_SPLS: SplPerson[] = [
   { id: "sundeep-jolly", name: "Sundeep Jolly", title: "Co-founder, Operations" },
   { id: "daniel-bennett", name: "Daniel Bennett", title: "Strategic Projects" },
   { id: "jasmine-singh", name: "Jasmine Singh", title: "Strategic Projects" },
@@ -91,7 +94,7 @@ export const MERCOR_SPLS: SplPerson[] = [
   { id: "lila-okonkwo", name: "Lila Okonkwo", title: "Strategic Projects" },
 ];
 
-export function splById(id: string | null | undefined): SplPerson | null {
+function splById(id: string | null | undefined): SplPerson | null {
   if (!id) return null;
   return MERCOR_SPLS.find((s) => s.id === id) ?? null;
 }

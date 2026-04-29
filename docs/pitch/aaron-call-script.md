@@ -7,7 +7,7 @@
 
 ## OPEN — Logan, ~15s
 
-> "Aaron — Aarnav and I are both on the CUA-envs contract for Anthropic, under Drew. This isn't a separate company. It's an internal proposal: add a new Expert Domain to Mercor called **Creator Experts**. Six slides, then I'll show you the demo at rallyai.org."
+> "Aaron — Aarnav and I are both on the CUA-envs contract for Anthropic, under Drew. This isn't a separate company. It's an internal proposal: add a new Expert Domain to Mercor called **Creator Experts**. Six slides, then I'll show you the demo at musing-maxwell-84ed29.vercel.app."
 
 ---
 
@@ -89,7 +89,7 @@ Format: **[click]** = what Logan does. *Italic* = what Logan says. Bracketed UI 
 
 ### Part 1 — Logan as creator (~90s)
 
-**[click]** Top-right persona dropdown → **Sign in as Logan Mann**. Lands on `/explore`.
+**[click]** Top-right persona dropdown → **"I am a creator (Logan)"**. Lands on `/home`. Click **Explore** in the sidebar.
 
 > *"Your Explore page. Same grid you use today. Look at the Domain filter — we added one row: Creators & Influencers. The cards are real brand campaigns. Celsius, Bucked Up, Bloom, Ghost — all advertising on TikTok today."*
 
@@ -113,13 +113,13 @@ Format: **[click]** = what Logan does. *Italic* = what Logan says. Bracketed UI 
 
 ### Part 2 — Switch to Aaron as Mercor admin (~90s)
 
-**[click]** Avatar dropdown → **Switch to Aaron Langerman**. Lands on `/admin`.
+**[click]** Bottom-left sidebar avatar (tooltip says **Switch persona**). Lands on `/admin`.
 
-> *"Now I'm signed in as you. KPIs across the top — 12 active campaigns, 38 pending applicants, $24K GMV last 7 days. Mercor's dashboard pattern."*
+> *"Now I'm signed in as you. Top of the page — Brand-voice fit, Comment-relevance, Audience overlap, Auto-draft queue. Below that, the GMV chart trends to ~$24K week-over-week. Mercor's dashboard pattern, just for the brand side."*
 
 **[click]** Sidebar → `Match`. Pick **Celsius** from the brand dropdown.
 
-> *"Manual matching workbench. Pick Celsius. Top creator: Logan Mann. Similarity 0.91. Impact 87. Suggested $850 per post."*
+> *"Manual matching workbench. Pick Celsius. Logan is pinned #1 with high similarity, high impact, and a suggested rate that scales with his impact score."*
 
 **[click]** Expand the Logan row. Rationale paragraph appears.
 
@@ -127,15 +127,15 @@ Format: **[click]** = what Logan does. *Italic* = what Logan says. Bracketed UI 
 
 **[click]** Pick 5 creators → `Generate outreach`. Lands on `/admin/outreach`.
 
-> *"Haiku drafted the first message. Cites my Average-quant video and Celsius's college-ICP ad copy. Approve sends. Edit fine-tunes."*
+> *"The opener cites Logan's Average-quant video by URL and Celsius's college-ICP positioning — that's the RAG payoff. Approve sends. Edit fine-tunes."*
 
-**[click]** Open an in-flight haggler. Type **"$700?"** in the reply box. Wait ~4s.
+**[click]** Open an in-flight haggler. Type **"$700?"** in the reply box.
 
-> *(reply lands)* *"'Could do $800 if you cover shipping.' Persona-aware sim. The CRM at 1,000-hires-a-week scale, just for the brand side."*
+> *(reply lands fast — typically 1-3 seconds via Gemini Flash Lite, with a brand-aware fallback if the upstream stalls)* *"'Love the ICP fit — can we do a study-session + gym clip combo? Would land on FYP for sure.' Persona-aware sim. The CRM at 1,000-hires-a-week scale, just for the brand side."*
 
 **[click]** Sidebar → `/admin/campaigns/[id]`. Live perf curve ticking.
 
-> *"Live campaign. Views ticking every 8 seconds. Comment relevance 38%. Sales 4. Invoice: $400 base + $310 relevant-eyes bonus = $710. Payout grounded in comment relevance, not just sales. Fair to creator and brand."*
+> *"Live campaign. Views tick every 8-12 seconds. The pricing breakdown card shows the formula: Base floor + impact term × 0.15 + relevant-eyes × 0.05. Call out whatever the live numbers show — the point is the payout is grounded in comment relevance, not just sales. Fair to creator and brand."*
 
 ### Close — Logan, ~10s
 
@@ -164,3 +164,13 @@ Format: **[click]** = what Logan does. *Italic* = what Logan says. Bracketed UI 
 ---
 
 **Total:** ~4 min spoken on the deck, ~3 min demo. Buffer 5 min Q&A. Cap at 15 min.
+
+---
+
+## Demo hazards — do not do these
+
+- **Don't change the brand dropdown off Celsius on `/admin/match`.** Logan is only pinned for `celsius` (`pin_first_for: ["celsius"]` in `creators.ts`). For any other brand he ranks by raw cosine + impact and almost certainly drops off the visible top-14 list. The wow moment evaporates.
+- **Don't hard-refresh `/admin` mid-demo.** AppShell waits for hydration before rendering, but the sidebar may briefly show creator nav (~80ms) before flipping to admin nav. Cosmetic, but distracting on stage.
+- **Don't open `/admin/interviews/<id>` unless rehearsed.** The page is reachable from `/admin/match` row links; it isn't part of the scripted flow. Renders fine for creators with cached interviews; behavior with no interview history is unverified.
+- **Don't dry-run the haggler reply minutes before the call.** Gemini Flash Lite quota throttles fast. The route now falls back to a brand-aware static template (server-side, returns 200 not 502), so the demo never shows an error — but the fallback voice is fixed text, not LLM-generated.
+- **Don't skip clicking Explore in the sidebar after creator login.** Creator login lands on `/home`, not `/explore`. Click Explore to start the warmup tour.

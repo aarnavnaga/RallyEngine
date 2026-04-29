@@ -54,38 +54,45 @@ Cite Goldman Sachs / HypeAuditor / The Net Influencer if Aaron leans in.
 > good UGC looks like. (3) Meta CPMs jumped 20% — brands are paying more
 > than ever to reach an audience the algorithm is making harder to reach."
 
-Pause. Then transition: *"That last point matters because it sets up our
-moat."*
+Bridge sentence (closes the topic gap into slide 4):
+
+> *"That CPM squeeze is exactly why brands are rethinking how they pay
+> creators."*
 
 ---
 
-## Slide 4 · **PAY FOR PROOF.** (90s — NEW)
+## Slide 4 · **PAY FOR PROOF.** (55s — NEW)
 
-> "One of our biggest adds is what we're paying creators *for*."
+Adversarial-review trim: the slot is 55 seconds, not 90. The visual
+ledger reads in under 20s; verbal narration covers the contrast and the
+closing analogy, then yields the floor for a question.
 
-Set up the contrast:
+> "Industry default pays a flat rate per post. The bench is **'how many
+> did you ship?'** Volume metric. Rewards effort, not outcome."
 
-> "Industry default — and we know this because we've been the creator on
-> these deals — pays a flat rate per post. The bench is **'how many did
-> you ship?'** It's a volume metric. It rewards effort, not outcome. And
-> it's exactly what's flooding YouTube and TikTok with AI slop right now
-> — Kapwing puts that at **21 to 33% of YouTube's feed**, and YouTube
-> just nuked 16 channels with 4.7 billion views in their January
-> enforcement wave."
+> "Our bench is **web-scraped performance signals** — engagement velocity,
+> completion rate, comment quality, niche fit. Payout is performance
+> multiplier × audience-fit. **Outcome, not effort.**"
 
-> "Our bench is **web-scraped performance signals** — refreshed per cycle.
-> Engagement velocity. Completion rate. Comment quality. Niche fit. The
-> payout is performance multiplier × audience-fit. **Outcome, not effort.**"
+Closing punch (Aaron-resonance line, deliver slowly, hold eye contact):
 
-Close the slide:
+> "78% of brands now prefer this model — up from 52% in 2023. Mercor
+> already pays *experts* for outcomes, not hours. We're applying the same
+> thing to creators."
 
-> "78% of brands now prefer this model — up from 52% in 2023. Performance
-> pricing is no longer the contrarian view. Mercor already pays *experts*
-> for outcomes, not hours. We just want to do the same thing for
-> creators — and we've already built the scraper."
+Then stop talking. Let Aaron read the ledger and the 78% anchor for two
+beats before clicking forward. If he asks a question, answer it before
+moving on — that's the whole point of trimming.
 
-The last sentence is the Aaron-resonance line. The Mercor-experts ↔
-Mercor-creators parallel is the whole pitch.
+**Off-script handles** (only deploy if Aaron raises them):
+- *"What about AI slop saturation?"* → "Kapwing puts AI slop at 21–33%
+  of YouTube's feed. The slop filter on the bench drops anything below
+  the niche 25th percentile, which is why pulling 22 posts gives you 14
+  high-signal ones, not 22."
+- *"Will brands accept paying creators differently?"* → 26% of consumers
+  prefer AI-generated creator content, down from 60% in 2023; brands are
+  reading the same trend and 78% are responding by tying pay to outcomes.
+  We're shipping into a tailwind, not a headwind.
 
 ---
 
@@ -153,24 +160,25 @@ Hover the brand panel left rail without saying anything for one beat.
 
 Click **Collapse → Expand** to reveal the detail pane.
 
-### 3. **The BENCH panel** — slide 4 in motion (60s)
+### 3. **The BENCH panel** — slide 4 in motion (45s)
 
 This is the new beat. Point at the purple **LIVE PERFORMANCE BENCH**
 strip across the top of the expanded panel.
 
-> "Here's slide 4. **Live performance bench, scraped two minutes ago.**
+> "Here's slide 4. **Live performance bench — last scraped today.**
 > We pulled 20 of Logan's recent posts. **15 passed the slop filter** —
-> 5 dropped because they were low-signal: low engagement, off-niche, or
-> stylistically recycled. Engagement velocity is 0.46, which is the 60th
-> percentile of the energy-drink niche. **Only the 15 high-signal posts
-> feed Impact.** Which means they're the only ones that move the
-> $203-per-post number on the right."
+> 5 dropped because they were low-signal. Engagement velocity 0.46, which
+> puts him in the **60th percentile** of energy-drink creators. Only the
+> 15 high-signal posts move the $203 number on the right."
 
 Pause. Land the hook:
 
 > "Logan doesn't get paid more by posting more. He gets paid more by
-> **posting better.** That's deslopification — the same way Mercor pays
-> experts for outcomes, not seat-time."
+> **posting better.** Same model Mercor uses for experts."
+
+Note: the panel says "last scraped today" rather than a minute-by-minute
+timestamp — keeps the framing honest if Aaron asks to scrape another
+creator on the spot. The scraper is a daily cron, not a real-time tail.
 
 ### 4. RAG citations + cited posts (45s)
 

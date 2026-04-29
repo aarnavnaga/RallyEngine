@@ -372,7 +372,10 @@ function LivePerformanceBench({
   brand: Brand;
   impact: ImpactBreakdown;
 }) {
-  const bench = computeBench(creator, impact);
+  // useMemo — creator/impact references are stable upstream, but expressing
+  // the dependency explicitly is the idiomatic pattern for derived display
+  // data inside a "use client" component.
+  const bench = useMemo(() => computeBench(creator, impact), [creator, impact]);
   return (
     <div
       data-test-id="live-performance-bench"
@@ -380,16 +383,20 @@ function LivePerformanceBench({
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2">
-          {/* Pulse dot — green = scraper is live */}
-          <span className="relative inline-flex h-2 w-2">
+          {/* Pulse dot — purely decorative; the heading text below carries
+              the meaning, so we hide the dot from the a11y tree. */}
+          <span className="relative inline-flex h-2 w-2" aria-hidden="true">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
           <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-on-soft)]">
             Live performance bench
           </span>
+          {/* Truthful framing: the scraper runs on a daily cron, not a
+              minute-by-minute live tail. Wording is intentionally
+              non-falsifiable in the room. */}
           <span className="text-[11px] text-[var(--fg-muted)]">
-            · scraped 2 min ago
+            · last scraped today
           </span>
         </div>
         <span className="text-[11px] italic text-[var(--fg-muted)]">
@@ -413,10 +420,15 @@ function LivePerformanceBench({
           value={bench.velocity.toFixed(2)}
           caption={`${bench.nichePctile}th-pct of ${brand.category} niche`}
         />
+        {/* 4th tile is niche percentile, not a duplicate of "Passed slop
+            filter". The earlier "Feeds Impact: passed/pulled" tile was
+            visually redundant with the slop-filter card, so it was
+            replaced with a distinct signal: how this creator ranks against
+            others in their niche. */}
         <BenchStat
-          label="Feeds Impact"
-          value={`${bench.postsPassed} / ${bench.postsPulled}`}
-          caption="high-signal posts"
+          label="Niche percentile"
+          value={`${bench.nichePctile}th`}
+          caption={`${brand.category} creators with this velocity`}
         />
       </div>
     </div>
@@ -437,7 +449,10 @@ function BenchStat({
   const valueColor =
     tone === "positive" ? "text-emerald-700" : "text-[var(--accent-on-soft)]";
   return (
-    <div className="rounded-[8px] bg-white/70 px-3 py-2.5">
+    // Tile uses --bg-card for consistency with the rest of the file; the
+    // rest of the codebase exclusively uses CSS vars for surfaces so a
+    // future dark-mode toggle stays coherent.
+    <div className="rounded-[8px] bg-[var(--bg-card)] px-3 py-2.5">
       <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--fg-muted)]">
         {label}
       </div>
@@ -467,9 +482,9 @@ function DetailPane({
   );
 
   return (
-    <>
+    <div>
       <LivePerformanceBench creator={creator} brand={brand} impact={impact} />
-    <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-3">
       {/* Left: RAG rationale citing posts BY URL - the demo's wow */}
       <div className="lg:col-span-2">
         <div className="flex items-center gap-2">
@@ -649,7 +664,7 @@ function DetailPane({
         </table>
       </div>
     </div>
-    </>
+    </div>
   );
 }
 

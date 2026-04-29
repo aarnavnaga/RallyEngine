@@ -50,6 +50,7 @@ This is the version that matches what's actually on screen. Numbers, labels, but
 | *Why intern, not hire?* | "Lowest commitment for Mercor. Summer ships the case. If it works we move. If it doesn't, we wrap. No headcount line opens." |
 | *Should Mercor's GTM sell brands?* | "Yes — eventually. We just need clarity on the line. Logan and I run the first 5–10 deals during the pilot, hand off the playbook, your team takes the rest." |
 | *Why not Handshake?* | "Handshake is a job board. They don't have your contracts, Stripe Connect, or AI lab relationships. Adding a creator side to Handshake means rebuilding everything Mercor already has. Adding it here is one PR." |
+| *Slide 4 says you ran the same play through UCSB — show me the data.* | "Logan IS that UCSB run. The 22.7K-follower account you're about to see, the cited posts, the audience overlap on Celsius's college ICP — that's the validation. We didn't run a separate side-channel campaign. We built the candidate, ran him through the same matching workbench you're about to use, and confirmed the brand-fit signal works on a real creator with a real audience." |
 
 Total spoken: ~85 seconds + the 3-minute demo + Q&A. Cap the call at 15 minutes.
 

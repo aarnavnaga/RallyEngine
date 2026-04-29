@@ -92,6 +92,21 @@ Practical implication: if Aaron's connection is bad, the **first** click ("I am 
 
 We've not been able to make the demo work on a true Slow-3G profile (400 Kbps), because the React bundle can't hydrate fast enough for the persona dropdown to be interactive. If Aaron is on actual 3G cellular, the demo will be unhappy.
 
+## Mobile and tablet — don't screen-share from a phone
+
+Verified at 375px (iPhone SE), 414px (iPhone Plus), and 768px (iPad). The sidebar is fixed at 88px on every viewport and never collapses to a hamburger. Both `/admin/match` and `/admin/outreach` overflow horizontally below 1024px wide. The landing page and `/admin` overview render fine, but the workbench routes that drive the pitch are unusable on small screens. **Laptop-only demo. If Aaron pulls out his phone to follow along, point him at the laptop screen instead.**
+
+## If Aaron wanders off-script
+
+Logan is hand-pinned at #1 only for Celsius. Two scenarios came up clean during the round-15 audit:
+
+- **Switch brand to Bucked Up.** Sam Sulek lands at #1 (4.2M, 0.72 sim, 91 impact, $1,540). Click "Why?" — the panel honestly says "No cited TikTok posts indexed for this creator yet. Rank is from niche-tag and persona overlap with the brand brief." Then it shows niche-tag overlap (bodybuilding, gymtok, physique), geo evidence ("anchored in Midwest. Bucked Up's target geos: UCSB, ASU, Boise, Mountain West. No direct overlap; ranks on niche fit alone"), and the full impact + pay breakdown.
+- **Celsius, click row 2 (Jenny Kndd, UCLA).** Same pattern — no cited posts, but niche overlap (fitness, college, lifestyle, ucla) plus "Creator is anchored in UCLA, Los Angeles. Matches one of Celsius's target geos: UCSB, UCLA, Berkeley, USC, ASU, UMich" plus full impact 82, pay $1,507.
+
+**This is a stretch reveal you can lean on.** If Aaron presses "what about a non-pinned creator?" — click any row, walk the panel. The model is transparent about its coverage ("we don't have indexed posts for this creator yet"), grounds the ranking in objective signals (niche overlap, geo match), and shows the same pay formula. That's a feature, not a ditch.
+
+The only thing it's NOT good for: **demoing the cited-URL "wow moment" on a non-pinned creator**. The TikTok URL citation is Logan's specific reveal because his cited_posts are hand-curated. For everyone else the panel says "no posts indexed yet" — honest, but not the punchline.
+
 ---
 
 ## Known measurement artifacts

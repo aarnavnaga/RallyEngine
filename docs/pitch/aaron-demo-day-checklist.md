@@ -84,6 +84,14 @@ If the call ended on a "no" or a soft no:
 
 If Aaron asks "what would the second cohort cost?" or "what's the formula for sim score?", these numbers are what you should be reaching for.
 
+## If you're on hotel WiFi or coffee-shop bad networking
+
+The full Aaron walk under a Fast-3G profile (1.6 Mbps down, 200ms RTT — typical bad WiFi) takes about **10 seconds** end-to-end excluding spoken pauses. Stage 1 (landing → /admin) is the slowest at ~7s — that's the React bundle hydrating on a slow connection. Once you're past stage 1, every subsequent navigation is under 1s even on bad WiFi.
+
+Practical implication: if Aaron's connection is bad, the **first** click ("I am on the Mercor team (Aaron)") will take a few seconds longer than usual, but the demo still works end-to-end. If the first click hangs more than ~10s, hard-refresh once and try again.
+
+We've not been able to make the demo work on a true Slow-3G profile (400 Kbps), because the React bundle can't hydrate fast enough for the persona dropdown to be interactive. If Aaron is on actual 3G cellular, the demo will be unhappy.
+
 ---
 
 ## Known measurement artifacts

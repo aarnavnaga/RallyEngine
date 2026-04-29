@@ -54,9 +54,9 @@ That's the demo. Edit any page under `frontend/src/app/`, save, hot reload picks
 
 ## Push workflow
 
-- Push any branch → Vercel preview build.
-- Merge to `main` → prod deploy at `musing-maxwell-84ed29.vercel.app`.
-- I push to main directly. Branches get deleted after merge.
+- The Vercel ↔ GitHub integration is **not** configured to auto-deploy. `git push` (any branch, including `main`) does NOT trigger a build — verified 2026-04-29 by polling prod for 5 min after merging to `main` and seeing zero GitHub Deployments / check-runs.
+- To deploy: link the project once with `vercel link --yes --project musing-maxwell-84ed29`, then run `vercel deploy --prod --yes` from the repo root. The first run aliases the new deployment to `musing-maxwell-84ed29.vercel.app`.
+- I push commits to `main` directly. Deploy is a separate, manual step.
 
 ## Rebuild the deck
 

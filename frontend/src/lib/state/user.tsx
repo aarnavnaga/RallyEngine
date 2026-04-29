@@ -83,9 +83,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(raw) as { persona: Persona };
         if (parsed?.persona === "creator") setIdentity(LOGAN);
         else if (parsed?.persona === "admin") setIdentity(AARON);
+        else if (typeof window !== "undefined") window.localStorage.removeItem(STORAGE_KEY);
       }
     } catch {
-      /* noop */
+      if (typeof window !== "undefined") window.localStorage.removeItem(STORAGE_KEY);
     } finally {
       setHydrated(true);
     }

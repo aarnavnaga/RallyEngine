@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   },
   description:
     "The Creators & Influencers expert vertical on the Mercor platform. Apply to brand campaigns, get matched, get paid via Stripe.",
-  icons: { icon: "/mercor-favicon.ico" },
+  icons: { icon: "/mercor-favicon.png" },
   openGraph: {
     title: "Mercor | Creators & Influencers",
     description:
@@ -25,6 +25,21 @@ export const metadata: Metadata = {
     url: "https://musing-maxwell-84ed29.vercel.app",
     siteName: "Mercor",
     type: "website",
+    images: [
+      {
+        url: "https://musing-maxwell-84ed29.vercel.app/mercor-logo.png",
+        width: 800,
+        height: 800,
+        alt: "Mercor",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Mercor | Creators & Influencers",
+    description:
+      "The Creators & Influencers expert vertical on the Mercor platform.",
+    images: ["https://musing-maxwell-84ed29.vercel.app/mercor-logo.png"],
   },
 };
 

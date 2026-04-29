@@ -124,8 +124,6 @@ Three quick-reply chips above the composer (e.g. "Confirm $1100 Rate", "Hold at 
 
 ## What to do if something breaks mid-demo
 
-The most likely failure mode is **Gemini Flash Lite returning a slightly off-tone reply after 3-4 rapid messages on the haggler chat**. The server-side fallback in `/api/chat-reply` catches every non-success path (verified in round 7 — 5/5 invalid-key calls returned 200 with brand-aware fallback text) so the bubble always renders. If Aaron notices a reply sounds boilerplate, say: *"Quota throttled — that one's the static fallback, the earlier ones were the real model."*
+The most likely failure mode is **Gemini Flash Lite returning a slightly off-tone reply after 3-4 rapid messages on the haggler chat**. The server-side fallback in `/api/chat-reply` catches every non-success path so the bubble always renders. If Aaron notices a reply sounds boilerplate, say: *"Quota throttled — that one's the static fallback, the earlier ones were the real model."*
 
-**DevTools console is now clean** as of round 8 — clearbit was dropped from the BrandMark fallback chain (commit b05905f), so a fresh navigation to /admin generates zero console errors. If you do see errors, they're likely from a still-cached pre-fix bundle — hard-refresh once.
-
-Recovery move for any other glitch: **bottom-right corner has a `RESET ALL FOR DEMO` button**. One click resets persona, deliverables, deal state, and timers back to the seed. Use it between dry-runs, not during the live call.
+For everything else (page hangs, sidebar misses Match, wrong persona, console errors, perf counter stalls), the recovery moves and what-to-say lines live in [aaron-demo-day-checklist.md](aaron-demo-day-checklist.md) under "During the call". Universal escape hatch: **bottom-right `RESET ALL FOR DEMO` button** wipes state and bounces to the landing page.

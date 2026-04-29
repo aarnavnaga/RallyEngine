@@ -130,6 +130,43 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     }
   });
 
+  // Round-10 F6: lock in the RESET ALL FOR DEMO button so the recovery move
+  // we promise in the call script keeps working.
+  test("RESET ALL FOR DEMO wipes mercor.* state and bounces to /", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE}/`);
+    await page.evaluate(() => {
+      window.localStorage.setItem(
+        "mercor.identity.v1",
+        JSON.stringify({ persona: "admin" }),
+      );
+      window.localStorage.setItem(
+        "mercor.deliverables.v1",
+        JSON.stringify({ touched: true }),
+      );
+      window.localStorage.setItem(
+        "mercor.outreach.v2",
+        JSON.stringify({ scratch: "round-10" }),
+      );
+    });
+    await page.goto(`${BASE}/admin`);
+    const before = await page.evaluate(() =>
+      Object.keys(window.localStorage).filter((k) => k.startsWith("mercor.")),
+    );
+    expect(before.length, "at least one mercor.* key before reset").toBeGreaterThanOrEqual(2);
+
+    page.once("dialog", (d) => d.accept());
+    await page.locator('[data-test-id="reset-demo"]').click();
+    await page.waitForURL(/\/$/, { timeout: 5_000 });
+
+    const after = await page.evaluate(() =>
+      Object.keys(window.localStorage).filter((k) => k.startsWith("mercor.")),
+    );
+    expect(after, "no mercor.* keys remain after reset").toEqual([]);
+    expect(new URL(page.url()).pathname).toBe("/");
+  });
+
   test("creator persona is bounced from admin routes to /home", async ({
     page,
   }) => {

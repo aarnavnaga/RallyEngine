@@ -49,17 +49,57 @@ function buildUserPrompt(body: ChatReplyBody): string {
   return `Recent thread:\n${recent}\n\nLatest from Aaron: ${body.lastAaronMessage}\n\nYour reply:`;
 }
 
-export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
+// Brand-aware deterministic fallback. Mirrors the voice of the client-side
+// `simulatedCreatorReply` / `simulatedBrandReply` in
+// frontend/src/app/admin/outreach/page.tsx so a flaky Gemini upstream during
+// the live demo never produces a 502 or an empty bubble. We can't import the
+// brand fixtures into a Node runtime route without dragging in the embeddings
+// JSON, so match by brandName substring (case-insensitive).
+function fallbackReply(body: ChatReplyBody): string {
+  const brand = body.brandName.toLowerCase();
+  const counterFirst = body.counterpartyName.split(" ")[0] ?? body.counterpartyName;
+  if (body.side === "creator") {
+    if (brand.includes("celsius")) {
+      return "Love the ICP fit - can we do a study-session + gym clip combo? Would land on FYP for sure.";
+    }
+    if (brand.includes("alani")) {
+      return "Obsessed with your content honestly. Can you do a morning-routine angle? That's our best-performing format.";
+    }
+    if (brand.includes("bucked")) {
+      return "Could do $800 if you cover shipping on the product? Sounds like a strong fit.";
+    }
+    if (brand.includes("ghost")) {
+      return "Great fit. Can we move on a 30-day exclusive? Our drops move fast.";
+    }
+    return "Thanks for reaching out! What does your posting schedule look like for the next 30 days, and is there flexibility on rate?";
   }
+  // brand-side fallback
+  if (brand.includes("celsius")) {
+    return `${counterFirst} is exactly our college-ICP profile. Greenlight at $850 base + bonus for ≥500K views. Lock the contract.`;
+  }
+  if (brand.includes("alani") || brand.includes("bloom")) {
+    return `Slate looks good. Locking ${counterFirst} at proposed rate - send the contract for countersign.`;
+  }
+  if (brand.includes("bucked") || brand.includes("ryse")) {
+    return "Approve at $750 + product. Need brand-voice review on draft script before posting.";
+  }
+  if (brand.includes("ghost")) {
+    return "Can we tighten exclusivity to 30 days only? At $900 with that constraint we're in.";
+  }
+  return "Reviewing internally. Will revert in 48 hours.";
+}
 
+export async function POST(req: NextRequest) {
   let body: ChatReplyBody;
   try {
     body = (await req.json()) as ChatReplyBody;
   } catch {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ text: fallbackReply(body), fallback: true });
   }
 
   const payload = {
@@ -83,15 +123,15 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(15_000),
     });
     if (!resp.ok) {
-      return NextResponse.json({ error: "upstream error" }, { status: 502 });
+      return NextResponse.json({ text: fallbackReply(body), fallback: true });
     }
     const data: { candidates?: GeminiCandidate[] } = await resp.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (!text) {
-      return NextResponse.json({ error: "empty response" }, { status: 502 });
+      return NextResponse.json({ text: fallbackReply(body), fallback: true });
     }
     return NextResponse.json({ text });
   } catch {
-    return NextResponse.json({ error: "fetch failed" }, { status: 502 });
+    return NextResponse.json({ text: fallbackReply(body), fallback: true });
   }
 }

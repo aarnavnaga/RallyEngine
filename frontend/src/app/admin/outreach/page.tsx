@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronRight, Send, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Send, Sparkles } from "lucide-react";
 import { CREATORS, CREATORS_BY_ID, type Creator } from "@/lib/data/creators";
 import { BRANDS_BY_ID, type Brand } from "@/lib/data/brands";
 import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
@@ -60,7 +60,41 @@ type Deal = {
   creatorChat: ChatThread;
   brandChat: ChatThread;
   contract: ContractTerms | null;
+  /** Strategic Project Lead assigned to handle this deal end-to-end.
+   *  Max one SPL per contract. When set, the auto-engine simulates the
+   *  SPL chatting with both the creator and the brand on Aaron's behalf.
+   *  Aaron can intervene at any time via the standard composer. */
+  assignedSpl?: string | null;
 };
+
+/**
+ * Mercor SPL roster surfaced in the Assign dropdown. These are example
+ * Strategic Project Leads from Mercor's existing operations team that
+ * Aaron can hand individual contracts to.
+ */
+export interface SplPerson {
+  id: string;
+  name: string;
+  title: string;
+}
+
+export const MERCOR_SPLS: SplPerson[] = [
+  { id: "sundeep-jolly", name: "Sundeep Jolly", title: "Co-founder, Operations" },
+  { id: "daniel-bennett", name: "Daniel Bennett", title: "Strategic Projects" },
+  { id: "jasmine-singh", name: "Jasmine Singh", title: "Strategic Projects" },
+  { id: "chris-krimitsos", name: "Chris Krimitsos", title: "Strategic Operations" },
+  { id: "maya-patel", name: "Maya Patel", title: "Account Management" },
+  { id: "ezra-chen", name: "Ezra Chen", title: "Business Development" },
+  { id: "priya-iyer", name: "Priya Iyer", title: "Operations" },
+  { id: "noor-ahmadi", name: "Noor Ahmadi", title: "Creator Partnerships" },
+  { id: "marcus-grant", name: "Marcus Grant", title: "Brand Partnerships" },
+  { id: "lila-okonkwo", name: "Lila Okonkwo", title: "Strategic Projects" },
+];
+
+export function splById(id: string | null | undefined): SplPerson | null {
+  if (!id) return null;
+  return MERCOR_SPLS.find((s) => s.id === id) ?? null;
+}
 
 // Inbox is a single scrollable list — no separate tabs per stage. Status
 // is communicated by a colored pill on each row (orange = pending,
@@ -406,13 +440,11 @@ function OutreachInner() {
   const brandParam = params.get("brand");
 
   const [deals, setDeals] = useState<Deal[]>(() => buildDefaultDeals());
-  const [autoMediate, setAutoMediate] = useState<AutoMediateMap>({});
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage on mount, then persist on every change.
   useEffect(() => {
     setDeals(loadDeals());
-    setAutoMediate(loadAutoMediate());
     setHydrated(true);
   }, []);
 
@@ -420,21 +452,38 @@ function OutreachInner() {
     if (hydrated) saveDeals(deals);
   }, [deals, hydrated]);
 
+  // Auto-engine: fires for every deal that has an SPL assigned. Replaces
+  // the old per-deal Auto toggle. Each tick advances one of the two chats
+  // (creator or brand) by simulating their reply, regardless of whether
+  // the deal is currently selected — so SPLs are progressing all of their
+  // assignments in the background.
   useEffect(() => {
-    if (hydrated) saveAutoMediate(autoMediate);
-  }, [autoMediate, hydrated]);
-
-  const toggleAutoMediate = useCallback((dealId: string) => {
-    setAutoMediate((current) => {
-      const next = { ...current };
-      if (current[dealId]) {
-        delete next[dealId];
-      } else {
-        next[dealId] = true;
-      }
-      return next;
-    });
-  }, []);
+    if (!hydrated) return;
+    const dealsWithSpl = deals.filter((d) => d.assignedSpl && d.stage === "outreach");
+    if (dealsWithSpl.length === 0) return;
+    const timer = window.setTimeout(() => {
+      setDeals((current) =>
+        current.map((d) => {
+          if (!d.assignedSpl || d.stage !== "outreach") return d;
+          const creator = CREATORS_BY_ID[d.creatorId];
+          const brand = BRANDS_BY_ID[d.brandId];
+          const campaign = d.campaignId ? CAMPAIGNS_BY_ID[d.campaignId] : null;
+          if (!creator || !brand) return d;
+          const campaignTitle = campaign?.title ?? `${brand.name} Campaign`;
+          const patch = autoMediateStep(d, creator, brand, campaignTitle);
+          return { ...d, ...patch };
+        }),
+      );
+    }, 5500);
+    return () => window.clearTimeout(timer);
+    // Re-run whenever any assigned-SPL deal changes message count or the
+    // assignment set itself changes, so each tick fires after the previous
+    // round persists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    hydrated,
+    deals.map((d) => `${d.id}:${d.assignedSpl ?? ""}:${d.creatorChat.messages.length}:${d.brandChat.messages.length}:${d.stage}`).join("|"),
+  ]);
 
   // Inject picks from /admin/match if present.
   useEffect(() => {
@@ -520,9 +569,8 @@ function OutreachInner() {
                   key={deal.id}
                   deal={deal}
                   selected={deal.id === selectedId}
-                  autoMediate={autoMediate[deal.id] === true}
                   onSelect={() => setSelectedId(deal.id)}
-                  onToggleAutoMediate={() => toggleAutoMediate(deal.id)}
+                  onAssignSpl={(splId) => updateDeal(deal.id, { assignedSpl: splId })}
                 />
               ))}
             </ul>
@@ -534,7 +582,6 @@ function OutreachInner() {
           {selected ? (
             <DealDetail
               deal={selected}
-              autoMediate={autoMediate[selected.id] === true}
               onUpdate={(p) => updateDeal(selected.id, p)}
             />
           ) : (
@@ -543,11 +590,6 @@ function OutreachInner() {
             </div>
           )}
         </div>
-
-        {/* RIGHT rail: contract preview (only when negotiating+ with a contract) */}
-        {selected?.contract && selected.stage !== "outreach" ? (
-          <ContractPanel deal={selected} onUpdate={(p) => updateDeal(selected.id, p)} />
-        ) : null}
       </div>
     </div>
   );
@@ -562,12 +604,11 @@ function OutreachInner() {
 interface DealRowProps {
   deal: Deal;
   selected: boolean;
-  autoMediate: boolean;
   onSelect: () => void;
-  onToggleAutoMediate: () => void;
+  onAssignSpl: (splId: string | null) => void;
 }
 
-function DealRow({ deal, selected, autoMediate, onSelect, onToggleAutoMediate }: DealRowProps) {
+function DealRow({ deal, selected, onSelect, onAssignSpl }: DealRowProps) {
   const creator = CREATORS_BY_ID[deal.creatorId];
   const brand = BRANDS_BY_ID[deal.brandId];
   if (!creator || !brand) return null;
@@ -575,7 +616,21 @@ function DealRow({ deal, selected, autoMediate, onSelect, onToggleAutoMediate }:
   const lastCreatorMsg = deal.creatorChat.messages[deal.creatorChat.messages.length - 1];
   const lastBrandMsg = deal.brandChat.messages[deal.brandChat.messages.length - 1];
   const lastTs = Math.max(lastCreatorMsg?.timestamp ?? 0, lastBrandMsg?.timestamp ?? 0);
-  const preview = (lastTs === lastCreatorMsg?.timestamp ? lastCreatorMsg?.text : lastBrandMsg?.text) ?? deal.creatorChat.draft;
+  // 1-line LLM-style summary subtext per chat card. We surface the most
+  // recent counterparty turn (or the drafted opener if nothing's been
+  // sent yet) so Aaron can scan the inbox without opening every thread.
+  const lastFromOther =
+    lastTs === lastCreatorMsg?.timestamp && lastCreatorMsg?.from !== "aaron"
+      ? lastCreatorMsg?.text
+      : lastBrandMsg?.from !== "aaron"
+        ? lastBrandMsg?.text
+        : null;
+  const preview =
+    lastFromOther ??
+    (lastTs === lastCreatorMsg?.timestamp ? lastCreatorMsg?.text : lastBrandMsg?.text) ??
+    deal.creatorChat.draft;
+  const summary = synthesizeSummary(creator, brand, deal, preview);
+  const spl = splById(deal.assignedSpl);
 
   return (
     <li
@@ -598,9 +653,13 @@ function DealRow({ deal, selected, autoMediate, onSelect, onToggleAutoMediate }:
           <StagePill stage={deal.stage} />
         </div>
         <div className="mt-0.5 text-[11px] text-[var(--fg-muted)] truncate">{(deal.similarity * 100).toFixed(0)}% match · {fmtFollowers(creator.followers)}</div>
-        <p className="mt-1 line-clamp-1 text-[11.5px] text-[var(--fg-muted)]">{preview}</p>
-        <div className="mt-2 flex items-center justify-end">
-          <AutoMediateSwitch active={autoMediate} onToggle={onToggleAutoMediate} />
+        <p className="mt-1 line-clamp-2 text-[11.5px] italic text-[var(--fg-muted)]">{summary}</p>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <AssignSplControl
+            assignedSpl={spl}
+            onAssign={(id) => onAssignSpl(id)}
+            disabled={deal.stage === "signed"}
+          />
         </div>
       </div>
       <ChevronRight size={14} className={selected ? "text-[var(--accent)]" : "text-[var(--fg-subtle)]"} />
@@ -608,44 +667,100 @@ function DealRow({ deal, selected, autoMediate, onSelect, onToggleAutoMediate }:
   );
 }
 
-interface AutoMediateSwitchProps {
-  active: boolean;
-  onToggle: () => void;
+/**
+ * One-glance summary of the conversation state — derived locally from
+ * the most recent counterparty turn + the deal stage. Synchronous so
+ * the inbox renders instantly without waiting on an LLM call. The hook
+ * wording mimics the kind of summary an LLM might generate (subject +
+ * verb + object) so Aaron can skim without opening the thread.
+ */
+function synthesizeSummary(creator: Creator, brand: Brand, deal: Deal, preview: string | undefined): string {
+  if (deal.stage === "signed") {
+    return `Signed — comms moved to Slack. Briefing handoff with ${creator.name.split(" ")[0]} on launch window.`;
+  }
+  const firstName = creator.name.split(" ")[0];
+  const trimmed = (preview ?? "").trim();
+  if (!trimmed) {
+    return `Drafted opener ready to send — ${brand.name} fit at ${(deal.similarity * 100).toFixed(0)}% on audience overlap.`;
+  }
+  // Lowercase first character, strip the formal greeting Aaron's drafts
+  // usually start with so the summary reads as "X is asking about Y".
+  const cleaned = trimmed
+    .replace(/^Hey [^\-]+-\s*/i, "")
+    .replace(/^Hey [^,]+,\s*/i, "")
+    .replace(/^[A-Z]/, (c) => c.toLowerCase());
+  const short = cleaned.length > 130 ? `${cleaned.slice(0, 127)}…` : cleaned;
+  return `${firstName} ${short}`;
 }
 
-function AutoMediateSwitch({ active, onToggle }: AutoMediateSwitchProps) {
+interface AssignSplControlProps {
+  assignedSpl: SplPerson | null;
+  onAssign: (id: string | null) => void;
+  disabled?: boolean;
+}
+
+/**
+ * Compact dropdown that replaces the old Auto toggle. Opens a scrolling
+ * list of MERCOR_SPLS so Aaron can hand a single contract to one SPL
+ * (max one per contract). Selecting "Unassign" clears the slot and
+ * pulls the deal back to Aaron's manual queue.
+ */
+function AssignSplControl({ assignedSpl, onAssign, disabled }: AssignSplControlProps) {
+  const [open, setOpen] = useState(false);
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={active}
-      aria-label="Auto-mediate this deal"
-      data-test-id="auto-mediate-toggle"
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={[
-        "inline-flex items-center gap-1.5 select-none",
-        active ? "text-[var(--accent)]" : "text-[var(--fg-muted)] hover:text-[var(--fg)]",
-      ].join(" ")}
-      title={active ? "Auto-mediate on — Mercor will negotiate this deal" : "Auto-mediate off"}
-    >
-      <span className="text-[10px] font-semibold uppercase tracking-[0.06em]">Auto</span>
-      <span
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
         className={[
-          "relative inline-flex h-3.5 w-7 items-center rounded-full transition-colors",
-          active ? "bg-[var(--accent)]" : "bg-[var(--bg-hover)]",
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] transition-colors",
+          assignedSpl
+            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+            : "border-[var(--border)] text-[var(--fg-muted)] hover:bg-[var(--bg-hover)]",
+          disabled ? "cursor-not-allowed opacity-50" : "",
         ].join(" ")}
+        data-test-id="assign-spl-button"
       >
-        <span
-          className={[
-            "inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform",
-            active ? "translate-x-3.5" : "translate-x-0.5",
-          ].join(" ")}
-        />
-      </span>
-    </button>
+        {assignedSpl ? `SPL · ${assignedSpl.name.split(" ")[0]}` : "Assign"}
+        <ChevronDown size={11} />
+      </button>
+      {open ? (
+        <div
+          className="absolute right-0 top-7 z-30 max-h-[260px] w-[240px] overflow-y-auto rounded-md border border-[var(--border)] bg-[var(--bg-card)] py-1 text-[12px] shadow-[var(--shadow-card)]"
+        >
+          {assignedSpl ? (
+            <button
+              type="button"
+              onClick={() => {
+                onAssign(null);
+                setOpen(false);
+              }}
+              className="block w-full px-3 py-1.5 text-left text-[var(--danger)] hover:bg-[var(--bg-hover)]"
+            >
+              Unassign {assignedSpl.name.split(" ")[0]}
+            </button>
+          ) : null}
+          {MERCOR_SPLS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                onAssign(s.id);
+                setOpen(false);
+              }}
+              className={[
+                "block w-full px-3 py-1.5 text-left hover:bg-[var(--bg-hover)]",
+                assignedSpl?.id === s.id ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "",
+              ].join(" ")}
+            >
+              <div className="font-medium text-[var(--fg)]">{s.name}</div>
+              <div className="text-[10.5px] text-[var(--fg-muted)]">{s.title}</div>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -662,51 +777,52 @@ function StagePill({ stage }: { stage: DealStage }) {
 
 interface DealDetailProps {
   deal: Deal;
-  autoMediate: boolean;
   onUpdate: (p: Partial<Deal> | ((d: Deal) => Partial<Deal>)) => void;
 }
 
-function DealDetail({ deal, autoMediate, onUpdate }: DealDetailProps) {
+function DealDetail({ deal, onUpdate }: DealDetailProps) {
   const creator = CREATORS_BY_ID[deal.creatorId];
   const brand = BRANDS_BY_ID[deal.brandId];
   const campaign = deal.campaignId ? CAMPAIGNS_BY_ID[deal.campaignId] : null;
 
   const [side, setSide] = useState<ChatSide>("creator");
-  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Track message counts so the auto-mediate effect re-runs only when the
-  // conversation actually advances — not on every keystroke into the draft.
-  const creatorMessageCount = deal.creatorChat.messages.length;
-  const brandMessageCount = deal.brandChat.messages.length;
-
-  // Auto-mediate: every ~6s, advance whichever side is silent toward an offer.
-  // We deliberately depend only on the primitive identity slice (deal id,
-  // stage, both message counts, plus creator/brand ids). `deal` itself is a
-  // fresh object on every render (typing into the draft mutates the deals
-  // array up the tree), so depending on the whole object would clear the
-  // timer on every keystroke and the 5500ms tick would never fire. Inside
-  // the timer callback we use the `onUpdate((current) => ...)` updater to
-  // read the latest deal state at fire time.
-  useEffect(() => {
-    if (!autoMediate) {
-      if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
-      return;
-    }
-    if (deal.stage === "signed") return;
-    if (!creator || !brand) return;
-    const campaignTitle = campaign?.title ?? `${brand.name} Campaign`;
-    autoTimerRef.current = setTimeout(() => {
-      onUpdate((current) => autoMediateStep(current, creator, brand, campaignTitle));
-    }, 5500);
-    return () => {
-      if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoMediate, deal.id, deal.stage, creator?.id, brand?.id, creatorMessageCount, brandMessageCount]);
 
   if (!creator || !brand) return null;
 
   const chat = side === "creator" ? deal.creatorChat : deal.brandChat;
+  const spl = splById(deal.assignedSpl);
+
+  // Once a deal is signed, the chat is replaced with a Slack-handoff
+  // banner — comms move out of Mercor's surface and onto the brand's
+  // dedicated channel. Aaron stays in the loop via the persisted record.
+  if (deal.stage === "signed") {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-4">
+          <div className="flex items-center gap-3">
+            <Avatar name={creator.name} size={40} />
+            <div className="text-[14px] font-medium text-[var(--fg-muted)]">×</div>
+            <BrandMark key={brand.id} brand={brand} size={40} eager />
+            <div className="ml-2 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[15px] font-semibold">{creator.name} × {brand.name}</span>
+                <StagePill stage={deal.stage} />
+              </div>
+              <div className="mt-0.5 text-[12px] text-[var(--fg-muted)] truncate">
+                {campaign?.title ?? `${brand.name} Campaign`} · {(deal.similarity * 100).toFixed(0)}% brand-voice fit
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-[14px] border border-[var(--success)] bg-[var(--success-soft)] p-5 text-[13px] leading-relaxed text-[var(--success)]">
+          <div className="text-[14px] font-semibold">Comms moved to Slack.</div>
+          <p className="mt-2 text-[var(--fg)]">
+            This contract is signed. Day-to-day coordination with {creator.name.split(" ")[0]} and the {brand.name} brand team happens in their dedicated Slack channel. Deliverables were locked in the Creator Interview, so there&apos;s nothing left to negotiate here.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -720,13 +836,13 @@ function DealDetail({ deal, autoMediate, onUpdate }: DealDetailProps) {
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-semibold">{creator.name} × {brand.name}</span>
               <StagePill stage={deal.stage} />
-              {autoMediate ? (
+              {spl ? (
                 <span
                   className="inline-flex items-center gap-1 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent)]"
-                  title="Auto-mediate is on for this deal — toggle in the deal list"
+                  title={`${spl.name} (${spl.title}) is handling this contract — Aaron can intervene at any time.`}
                 >
                   <Sparkles size={10} />
-                  Auto-mediating
+                  SPL · {spl.name}
                   <ClaudeMark model="haiku" size="xs" />
                 </span>
               ) : null}

@@ -1078,21 +1078,27 @@ function ChatPanel({
         </div>
       ) : null}
 
-      {/* Composer */}
-      <div className="mt-3 flex items-end gap-2">
-        <textarea
+      {/* Composer — short single-row input inline with the Send button. */}
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          rows={3}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (draft.trim() && !waiting) sendMessage(draft);
+            }
+          }}
           placeholder={chat.messages.length === 0 ? "Approve the drafted opener…" : `Reply to ${counterpartyName}…`}
-          className="flex-1 resize-none rounded-[10px] border border-[var(--border)] bg-[var(--bg)] p-3 text-[13px] leading-relaxed focus:border-[var(--accent)] focus:outline-none"
+          className="flex-1 h-[40px] rounded-[10px] border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] leading-none focus:border-[var(--accent)] focus:outline-none"
           data-test-id="outreach-composer"
         />
         <button
           type="button"
           onClick={() => sendMessage(draft)}
           disabled={!draft.trim() || waiting}
-          className="btn-primary inline-flex h-[42px] items-center gap-1.5 px-4 text-[13px] disabled:opacity-50"
+          className="btn-primary inline-flex h-[40px] items-center gap-1.5 px-4 text-[13px] disabled:opacity-50"
           data-test-id="outreach-send"
         >
           <Send size={14} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { MercorFooter } from "./MercorFooter";
 import { ResetDemoButton } from "./ResetDemoButton";
@@ -9,7 +9,14 @@ import { useUser } from "@/lib/state/user";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { identity, hydrated } = useUser();
+
+  // Footer is the creator-side public footer (Mercor brand links, careers,
+  // press, etc.). Admin routes don't use it — hiding it on /admin/* avoids
+  // exposing dead-link footer items (`href="#"`) that the demo presenter
+  // shouldn't be clicking.
+  const showFooter = !pathname?.startsWith("/admin");
 
   useEffect(() => {
     // Wait until UserProvider has read localStorage. Otherwise a hard
@@ -41,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <main className="ml-[88px] min-h-screen">
         <div className="w-full px-8 py-8">{children}</div>
-        <MercorFooter />
+        {showFooter ? <MercorFooter /> : null}
       </main>
       <ResetDemoButton />
     </div>

@@ -62,31 +62,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     removalTimers.current.set(id, timer);
   }, []);
 
-  const push: Ctx["push"] = useCallback(
-    (t) => {
-      const id = crypto.randomUUID();
-      const next: ToastInternal = { ...t, id, ts: Date.now(), state: "entering" };
-      setToasts((cur) => [next, ...cur].slice(0, MAX_TOASTS));
-      // Flip to "visible" on the next paint so the entering transition runs.
-      // Double rAF guarantees the browser has committed the initial "entering"
-      // styles before we transition to "visible".
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setToasts((cur) =>
-            cur.map((x) => (x.id === id && x.state === "entering" ? { ...x, state: "visible" } : x))
-          );
-        });
-      });
-      // Auto-dismiss after the visible window. Track the handle so we can clear
-      // it if the user dismisses manually first.
-      const dismissHandle = setTimeout(() => {
-        dismissTimers.current.delete(id);
-        beginLeave(id);
-      }, AUTO_DISMISS_MS);
-      dismissTimers.current.set(id, dismissHandle);
-    },
-    [beginLeave]
-  );
+  // Pop-up toasts are intentionally suppressed across the live demo so
+  // nothing distracts during Aaron's walkthrough. push() is a no-op; the
+  // type signature stays intact so existing call sites still compile.
+  const push: Ctx["push"] = useCallback((_t) => {
+    void _t;
+    void beginLeave;
+  }, [beginLeave]);
 
   const dismiss = useCallback(
     (id: string) => {

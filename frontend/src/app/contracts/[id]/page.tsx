@@ -11,8 +11,13 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { CONTRACTS_BY_ID, type Contract } from "@/lib/data/contracts";
+import { getBrandByName, type Brand } from "@/lib/data/brands";
+import { BrandMark } from "@/components/shell/BrandMark";
 
-// ─── Brand mark (local, mirrors Home page helper) ────────────────────────────
+// ─── Brand mark (resolves real logo via Clearbit/Google with letter fallback) ─
+// Falls back to a synthetic Brand record if the contract's brand_label doesn't
+// resolve in BRANDS_BY_NAME. That keeps copy parity with the human label even
+// when we haven't curated a Brand row yet (e.g. "Mercor (Campus)").
 function ContractBrandMark({
   label,
   size = 32,
@@ -20,7 +25,7 @@ function ContractBrandMark({
   label: string;
   size?: number;
 }) {
-  const BRAND_COLORS: Record<string, string> = {
+  const FALLBACK_BRAND_COLORS: Record<string, string> = {
     Mercor: "#7857ff",
     Celsius: "#0e7c54",
     "Bucked Up": "#0d1f43",
@@ -30,22 +35,32 @@ function ContractBrandMark({
     "Ghost Energy": "#262626",
     "Ryse Supps": "#1c1c1c",
   };
-  const color = BRAND_COLORS[label] ?? "#9ca3af";
-  const initial = label.replace(/[^A-Za-z]/g, "").slice(0, 1).toUpperCase();
-  return (
-    <span
-      className="inline-grid shrink-0 place-items-center rounded-md font-semibold text-white"
-      style={{
-        width: size,
-        height: size,
-        background: color,
-        fontSize: Math.max(12, size * 0.45),
-      }}
-      aria-label={label}
-    >
-      {initial}
-    </span>
-  );
+  // Strip parenthetical qualifiers ("Mercor (Campus)" → "Mercor") so the
+  // BRANDS_BY_NAME lookup hits Mercor's curated record.
+  const stripped = label.replace(/\s*\([^)]*\)\s*/g, "").trim();
+  const brand = getBrandByName(stripped) ?? getBrandByName(label);
+  if (brand) {
+    return <BrandMark brand={brand} size={size} eager />;
+  }
+  // Synthesize a minimal Brand so BrandMark can still try the Clearbit chain
+  // off a guessed website. If that also fails it'll land on the letter avatar.
+  const synthetic: Brand = {
+    id: stripped.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    name: stripped || label,
+    category: "wellness",
+    website: `https://${stripped.toLowerCase().replace(/\s+/g, "")}.com`,
+    hq: "",
+    audience: "",
+    brand_voice: [],
+    active_ads_seen: 0,
+    ad_themes: [],
+    target_geo: [],
+    target_personas: [],
+    budget_per_post_low: 0,
+    budget_per_post_high: 0,
+    color: FALLBACK_BRAND_COLORS[label] ?? "#9ca3af",
+  };
+  return <BrandMark brand={synthetic} size={size} eager />;
 }
 
 // ─── Status pill ─────────────────────────────────────────────────────────────

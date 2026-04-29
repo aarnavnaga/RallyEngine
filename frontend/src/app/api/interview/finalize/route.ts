@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CheatingLevel } from "@/app/api/interview/observe/route";
-import { getRubricById, type Rubric } from "@/lib/data/rubrics";
+import {
+  getRubricById,
+  IDEAS_RUBRIC,
+  brandContextForCampaign,
+  type Rubric,
+  type IdeaSubmission,
+  type IdeaScore,
+  type ProposedKpi,
+} from "@/lib/data/rubrics";
+import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +35,8 @@ export interface InterviewFinalizeBody {
   transcript: InterviewMessage[];
   scores: InterviewFrameScore[];
   finishedAt: string;
-  // Optional — picks the role-specific rubric used to grade the interview.
-  // Falls back to the creator-default rubric if missing or unrecognized.
+  // Optional — picks the brand-customized core rubric used to grade the
+  // interview. Falls back to a generic creator rubric when missing.
   rubricId?: string;
 }
 
@@ -42,6 +51,39 @@ export interface RubricCriterionScore {
   weight: number;
 }
 
+/**
+ * Insight-based payout structure. The contract overhaul moves us off
+ * "X posts → $Y" volume pricing toward a small base retainer plus
+ * per-KPI bonuses tied to outcomes the creator self-proposed in their
+ * ideas section. This keeps creators incentivized for QUALITY (engagement
+ * rate, save rate, conversion lift) instead of grinding out 10 posts that
+ * each get 200 views ("slop").
+ */
+export interface InsightPayout {
+  /** Human-readable metric name (e.g. "Save rate"). */
+  metric: string;
+  /** Threshold the creator must beat. */
+  threshold: string;
+  /** USD bonus if the threshold is hit. */
+  bonus_usd: number;
+  /** Source — either pulled from a creator-proposed KPI or a Mercor default. */
+  source: "creator-proposed" | "mercor-default";
+}
+
+export interface ContractRecommendation {
+  /** Small base retainer paid on completion regardless of metrics. */
+  base_retainer_usd: number;
+  /** Capped total opportunity if every bonus tier hits. */
+  cap_usd: number;
+  /** Per-KPI bonuses; each one fires independently when its threshold lands. */
+  bonuses: InsightPayout[];
+  /** "Slop tax" — discount applied if the post under-performs the creator's
+   *  own historical median. Encourages quality, not raw posting volume. */
+  slop_tax_pct: number;
+  /** One-line headline summarizing the structure. */
+  rationale: string;
+}
+
 export interface InterviewSummary {
   // Aggregate confidence (mean over frames, 0..1).
   confidence: number;
@@ -53,13 +95,19 @@ export interface InterviewSummary {
   summary: string;
   // The single worst frame (highest cheating signal, then lowest confidence).
   worstFrame: InterviewFrameScore | null;
-  // Role-aware rubric grade. When the LLM call succeeds, criteria has one
-  // entry per rubric criterion with a 0..5 score + rationale, and overall
-  // is the weighted mean of those scores normalized to 0..1.
+  // Brand-customized core rubric grade. 4 fixed criteria.
   rubricId?: string;
   rubricLabel?: string;
   rubricOverall?: number;
   criteria?: RubricCriterionScore[];
+  // Ideas section — extracted from the transcript + graded separately.
+  ideas?: IdeaSubmission[];
+  ideaScores?: IdeaScore[];
+  ideasOverall?: number;
+  // Combined verdict: blends core (60%) + ideas (40%) into one 0..1 figure.
+  combinedScore?: number;
+  // Insight-based contract recommendation derived from creator-proposed KPIs.
+  contractRecommendation?: ContractRecommendation;
 }
 
 export interface InterviewRecord {
@@ -125,12 +173,7 @@ const CHEATING_CONFIDENCE_FLOOR = 0.3;
 
 // Debounced cheating aggregator. A single noisy frame must NOT flip the
 // integrity badge to "high" (hiring-decision risk). We require ≥2 *consecutive*
-// frames at a given level before promoting the badge:
-//   high   → 2 consecutive frames at high
-//   medium → 2 consecutive frames at ≥ medium
-//   low    → any single frame at ≥ low
-//   none   → otherwise
-// Frames whose confidence is below the floor reset both consecutive runs.
+// frames at a given level before promoting the badge.
 function aggregateCheating(scores: InterviewFrameScore[]): CheatingLevel {
   let highRun = 0;
   let mediumRun = 0;
@@ -175,10 +218,10 @@ function aggregateCheating(scores: InterviewFrameScore[]): CheatingLevel {
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-// LLM rubric grader. Returns per-criterion 0-5 scores + rationales,
-// keyed by the rubric we picked for the campaign. Falls back to null on
-// any failure so the synthetic aggregate still works.
-async function geminiRubric(
+// LLM rubric grader for the 4 brand-customized core criteria. Returns
+// per-criterion 0-5 scores + rationales. Falls back to null on any failure
+// so the synthetic aggregate still works.
+async function geminiCoreRubric(
   transcript: InterviewMessage[],
   rubric: Rubric,
   campaignTitle: string,
@@ -208,8 +251,8 @@ async function geminiRubric(
     `{"criteria":[{"id":${idsForJson},"score":0..5,"rationale":"<short, quotes a candidate phrase>"} ...]}`,
     "Rules:",
     "- Score each criterion an integer 0..5. 0 = absent, 3 = adequate, 5 = excellent.",
-    "- Each rationale must be one short sentence (under 25 words) and quote a phrase the candidate actually said when possible.",
-    "- Be strict — do not give 5 unless the candidate clearly nailed that criterion.",
+    "- Each rationale must be one short sentence (under 30 words) and quote a phrase the candidate actually said when possible.",
+    "- Be strict — do not give 5 unless the candidate clearly nailed that criterion against THIS brand.",
     "- Do not include any other fields, prose, or markdown. JSON only.",
   ].join("\n");
 
@@ -225,7 +268,7 @@ async function geminiRubric(
         contents: [{ role: "user", parts: [{ text: transcriptText }] }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 600,
+          maxOutputTokens: 700,
           topP: 0.9,
           responseMimeType: "application/json",
         },
@@ -255,10 +298,6 @@ async function geminiRubric(
     if (!parsed || typeof parsed !== "object") return null;
     const candidate = (parsed as { criteria?: unknown }).criteria;
     if (!Array.isArray(candidate)) return null;
-    // Re-shape into our RubricCriterionScore[] preserving rubric weight +
-    // label, validating each entry. Any criterion the LLM dropped or
-    // mangled gets a neutral 2.5 score with a "no data" rationale so the
-    // weighted mean still computes.
     const out: RubricCriterionScore[] = rubric.criteria.map((c) => {
       const match = candidate.find(
         (x) => typeof x === "object" && x !== null && (x as { id?: unknown }).id === c.id,
@@ -267,7 +306,7 @@ async function geminiRubric(
       const score = Math.max(0, Math.min(5, rawScore));
       const rationale =
         typeof match?.rationale === "string" && match.rationale.length > 0
-          ? match.rationale.slice(0, 240)
+          ? match.rationale.slice(0, 280)
           : "No clear evidence in transcript.";
       return {
         id: c.id,
@@ -281,6 +320,406 @@ async function geminiRubric(
   } catch {
     return null;
   }
+}
+
+// Extract structured ideas from the transcript. Looks for any place the
+// candidate pitched a specific concept and pulls out idea/hook/punch/
+// origin/why-it-works/proposed-KPIs. Returns up to 3 ideas. Falls back to
+// null when no Gemini key is set.
+async function geminiExtractIdeas(
+  transcript: InterviewMessage[],
+  campaignTitle: string,
+  brandName: string,
+): Promise<IdeaSubmission[] | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  if (transcript.filter((m) => m.role === "user").length === 0) return null;
+
+  const transcriptText = transcript
+    .map((m) => `${m.role === "assistant" ? "Interviewer" : "Candidate"}: ${m.content}`)
+    .join("\n");
+
+  const systemText = [
+    `You are extracting concrete content ideas a creator pitched during a Mercor interview for the "${campaignTitle}" role with ${brandName}.`,
+    "",
+    "Pull up to 3 ideas the candidate ACTUALLY pitched (not generic ideas you imagine on their behalf).",
+    "For each idea, return its components AS STATED OR CLEARLY IMPLIED by the candidate.",
+    "If the candidate didn't pitch any concrete ideas, return an empty array.",
+    "",
+    "Output STRICT JSON ONLY. Schema:",
+    `{"ideas":[{`,
+    `  "id":"idea-1",`,
+    `  "idea":"<1-2 sentence summary>",`,
+    `  "hook":"<first 3s hook the candidate described, or '' if not stated>",`,
+    `  "punch":"<closing payoff/CTA, or '' if not stated>",`,
+    `  "origin":"<how the candidate said they came up with it, or '' if not stated>",`,
+    `  "why_works":"<candidate's reasoning for why it lands>",`,
+    `  "proposed_kpis":[{"metric":"engagement-rate","target":">8%","bonus":"$300"}],`,
+    `  "rebuttal":"<optional: candidate's response if AI critiqued the idea>"`,
+    `}]}`,
+    "",
+    "Rules:",
+    "- Quote the candidate's words where possible.",
+    "- proposed_kpis can be an empty array if no KPIs were mentioned.",
+    "- Each KPI metric should be a real performance lever (engagement-rate, save-rate, comment-relevance, conversion, brand-search-lift, video-completion). Avoid vanity metrics like 'follower count'.",
+    "- If only 0 ideas were pitched, return {\"ideas\":[]}.",
+    "- No prose outside the JSON.",
+  ].join("\n");
+
+  try {
+    const resp = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemText }] },
+        contents: [{ role: "user", parts: [{ text: transcriptText }] }],
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens: 900,
+          topP: 0.9,
+          responseMimeType: "application/json",
+        },
+      }),
+      signal: AbortSignal.timeout(18_000),
+    });
+    if (!resp.ok) return null;
+    interface IdeasResp {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    }
+    const data = (await resp.json()) as IdeasResp;
+    const text = data.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text ?? "")
+      .join("")
+      .trim();
+    if (!text) return null;
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+    if (!parsed || typeof parsed !== "object") return null;
+    const arr = (parsed as { ideas?: unknown }).ideas;
+    if (!Array.isArray(arr)) return null;
+    const out: IdeaSubmission[] = [];
+    for (let i = 0; i < arr.length && out.length < 3; i += 1) {
+      const v = arr[i];
+      if (!v || typeof v !== "object") continue;
+      const o = v as Record<string, unknown>;
+      const idea = typeof o.idea === "string" ? o.idea.slice(0, 400) : "";
+      if (!idea.trim()) continue;
+      const kpis = Array.isArray(o.proposed_kpis)
+        ? (o.proposed_kpis
+            .map((k) => {
+              if (!k || typeof k !== "object") return null;
+              const ko = k as Record<string, unknown>;
+              const metric = typeof ko.metric === "string" ? ko.metric.slice(0, 80) : "";
+              const target = typeof ko.target === "string" ? ko.target.slice(0, 80) : "";
+              const bonus = typeof ko.bonus === "string" ? ko.bonus.slice(0, 80) : "";
+              if (!metric || !target) return null;
+              return { metric, target, bonus } satisfies ProposedKpi;
+            })
+            .filter(Boolean) as ProposedKpi[])
+        : [];
+      out.push({
+        id: typeof o.id === "string" ? o.id.slice(0, 40) : `idea-${out.length + 1}`,
+        idea,
+        hook: typeof o.hook === "string" ? o.hook.slice(0, 240) : "",
+        punch: typeof o.punch === "string" ? o.punch.slice(0, 240) : "",
+        origin: typeof o.origin === "string" ? o.origin.slice(0, 240) : "",
+        why_works: typeof o.why_works === "string" ? o.why_works.slice(0, 320) : "",
+        proposed_kpis: kpis,
+        rebuttal:
+          typeof o.rebuttal === "string" && o.rebuttal.length > 0
+            ? o.rebuttal.slice(0, 320)
+            : undefined,
+      });
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+// Score each extracted idea on the 3 ideas-rubric criteria. Returns one
+// IdeaScore per IdeaSubmission in input order. Returns null on any LLM
+// failure so the rest of the summary can still ship.
+async function geminiGradeIdeas(
+  ideas: IdeaSubmission[],
+  brandName: string,
+  campaignTitle: string,
+): Promise<IdeaScore[] | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || ideas.length === 0) return null;
+
+  const ideasText = ideas
+    .map(
+      (i, idx) =>
+        `IDEA ${idx + 1} (id=${i.id}):\n` +
+        `  pitch: ${i.idea}\n` +
+        `  hook: ${i.hook}\n` +
+        `  punch: ${i.punch}\n` +
+        `  origin: ${i.origin}\n` +
+        `  why_works: ${i.why_works}\n` +
+        `  KPIs: ${i.proposed_kpis
+          .map((k) => `${k.metric} ${k.target} → ${k.bonus}`)
+          .join("; ") || "(none)"}\n` +
+        (i.rebuttal ? `  rebuttal: ${i.rebuttal}` : ""),
+    )
+    .join("\n\n");
+
+  const systemText = [
+    `You are grading concrete content ideas a creator pitched for the "${campaignTitle}" campaign with ${brandName}.`,
+    "Score each idea independently on three axes (0..5 integer):",
+    "- novelty: original vs. stock UGC pitch.",
+    "- brand_creator_fit: lives at the intersection of THIS brand's voice/ICP and THIS creator's actual content.",
+    "- potential: plausible reach + conversion upside on real levers (not vanity metrics).",
+    "",
+    "Output STRICT JSON ONLY. Schema:",
+    `{"scores":[{"idea_id":"idea-1","novelty":0..5,"brand_creator_fit":0..5,"potential":0..5,"rationale":"<one short sentence quoting the idea>"}]}`,
+    "Rules:",
+    "- 0..5 integers. Be strict; 5 only when a brand strategist would steal this idea.",
+    "- One score row per idea, idea_id matching the input.",
+    "- No prose outside the JSON.",
+  ].join("\n");
+
+  try {
+    const resp = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemText }] },
+        contents: [{ role: "user", parts: [{ text: ideasText }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 600,
+          topP: 0.9,
+          responseMimeType: "application/json",
+        },
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!resp.ok) return null;
+    interface IdeasGradeResp {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    }
+    const data = (await resp.json()) as IdeasGradeResp;
+    const text = data.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text ?? "")
+      .join("")
+      .trim();
+    if (!text) return null;
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+    if (!parsed || typeof parsed !== "object") return null;
+    const arr = (parsed as { scores?: unknown }).scores;
+    if (!Array.isArray(arr)) return null;
+    const clamp = (n: unknown): number =>
+      typeof n === "number" ? Math.max(0, Math.min(5, n)) : 2.5;
+    const out: IdeaScore[] = ideas.map((idea) => {
+      const match = arr.find(
+        (x) => typeof x === "object" && x !== null && (x as { idea_id?: unknown }).idea_id === idea.id,
+      ) as { novelty?: unknown; brand_creator_fit?: unknown; potential?: unknown; rationale?: unknown } | undefined;
+      return {
+        idea_id: idea.id,
+        novelty: clamp(match?.novelty),
+        brand_creator_fit: clamp(match?.brand_creator_fit),
+        potential: clamp(match?.potential),
+        rationale:
+          typeof match?.rationale === "string" && match.rationale.length > 0
+            ? match.rationale.slice(0, 280)
+            : "No clear evidence to score this idea.",
+      };
+    });
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+// Derive an insight-based contract recommendation from the creator's
+// proposed KPIs (preferred) plus brand defaults (fallback). The structure
+// is base retainer + per-KPI bonuses; the cap is bounded by the brand's
+// budget range so we don't overpromise. Slop tax is fixed at 25% of the
+// per-post bonus pool when the creator under-performs their own median.
+function deriveInsightPayouts(
+  ideas: IdeaSubmission[],
+  campaignId: string,
+): ContractRecommendation {
+  const campaign = CAMPAIGNS_BY_ID[campaignId];
+  const ctx = campaign ? brandContextForCampaign(campaign) : null;
+  const low = ctx?.budget_range.low ?? 600;
+  const high = ctx?.budget_range.high ?? 1200;
+  const brandName = ctx?.brand_name ?? "this brand";
+
+  // Base retainer: 25-30% of the bottom of the budget range. Floor $200.
+  const baseRetainer = Math.max(200, Math.round(low * 0.28));
+  // Cap = top of brand range. Bonuses can stack up to (cap - base).
+  const cap = high;
+  const bonusPool = Math.max(0, cap - baseRetainer);
+
+  // Roll up creator-proposed KPIs. Limit to 4 distinct metrics to keep the
+  // contract scannable. Parse the bonus string the LLM extracted; fall back
+  // to a fair fraction of the pool when no number was given.
+  const seen = new Set<string>();
+  const proposed: InsightPayout[] = [];
+  for (const idea of ideas) {
+    for (const kpi of idea.proposed_kpis) {
+      const key = kpi.metric.toLowerCase().trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const parsedBonus = parseUsd(kpi.bonus);
+      proposed.push({
+        metric: humanizeMetric(kpi.metric),
+        threshold: kpi.target,
+        bonus_usd: parsedBonus ?? 0, // backfilled below
+        source: "creator-proposed",
+      });
+      if (proposed.length >= 4) break;
+    }
+    if (proposed.length >= 4) break;
+  }
+
+  // Mercor defaults that round out the bonus stack when the creator only
+  // proposed 1-2 KPIs. These are the levers brand managers ALWAYS care
+  // about, regardless of whether the creator surfaced them.
+  const defaults: InsightPayout[] = [
+    {
+      metric: "Engagement rate (likes + comments / 1k views)",
+      threshold: ">8%",
+      bonus_usd: 0,
+      source: "mercor-default",
+    },
+    {
+      metric: "Save rate",
+      threshold: ">3%",
+      bonus_usd: 0,
+      source: "mercor-default",
+    },
+    {
+      metric: "Brand search lift (7-day window)",
+      threshold: ">15%",
+      bonus_usd: 0,
+      source: "mercor-default",
+    },
+    {
+      metric: "Comment-relevance score (Rally semantic match)",
+      threshold: ">0.6",
+      bonus_usd: 0,
+      source: "mercor-default",
+    },
+  ];
+
+  // Combine, deduping default metrics that overlap with proposed ones.
+  const combined: InsightPayout[] = [...proposed];
+  for (const d of defaults) {
+    if (combined.length >= 4) break;
+    if (combined.some((p) => p.metric.toLowerCase().includes(d.metric.toLowerCase().split(" ")[0] ?? ""))) continue;
+    combined.push(d);
+  }
+
+  // Distribute the bonus pool proportionally. Creator-proposed KPIs get a
+  // slight premium (each one is treated as 1.25 weight) since they're the
+  // ones the creator has skin in the game on; defaults are 1.0.
+  if (combined.length > 0 && bonusPool > 0) {
+    const weights: number[] = combined.map((p) =>
+      p.source === "creator-proposed" ? 1.25 : 1.0,
+    );
+    // totalWeight isn't used downstream — bonus distribution is governed by
+    // remainingWeight after we honor explicit creator-proposed amounts.
+    void weights.reduce((acc: number, w: number) => acc + w, 0);
+    let allocated = 0;
+    for (let i = 0; i < combined.length; i += 1) {
+      // Honor explicit creator-proposed dollar amounts first; remainder of
+      // the pool is split proportionally.
+      const explicit = combined[i].bonus_usd;
+      if (explicit > 0) {
+        allocated += explicit;
+      }
+    }
+    const remaining = Math.max(0, bonusPool - allocated);
+    const remainingWeight: number = combined
+      .map((p, i): number => (p.bonus_usd > 0 ? 0 : weights[i]))
+      .reduce((acc: number, w: number) => acc + w, 0);
+    if (remainingWeight > 0) {
+      for (let i = 0; i < combined.length; i += 1) {
+        if (combined[i].bonus_usd > 0) continue;
+        const share = (weights[i] / remainingWeight) * remaining;
+        combined[i].bonus_usd = Math.round(share / 25) * 25; // round to $25
+      }
+    }
+    // Make sure no bonus is below $50 (otherwise it reads as a noise tier).
+    for (let i = 0; i < combined.length; i += 1) {
+      if (combined[i].bonus_usd > 0 && combined[i].bonus_usd < 50) {
+        combined[i].bonus_usd = 50;
+      }
+    }
+    // Sanity check: total can't exceed bonusPool. Trim from the smallest.
+    let total = combined.reduce((a, p) => a + p.bonus_usd, 0);
+    while (total > bonusPool && combined.length > 0) {
+      const smallestIdx = combined
+        .map((p, i) => ({ i, b: p.bonus_usd }))
+        .sort((a, b) => a.b - b.b)[0].i;
+      combined[smallestIdx].bonus_usd = Math.max(50, combined[smallestIdx].bonus_usd - 25);
+      const newTotal = combined.reduce((a, p) => a + p.bonus_usd, 0);
+      if (newTotal === total) break;
+      total = newTotal;
+    }
+  }
+
+  const proposedCount = combined.filter((p) => p.source === "creator-proposed").length;
+  const rationale =
+    proposedCount > 0
+      ? `Quality-first contract for ${brandName}. ${proposedCount} bonus${proposedCount === 1 ? "" : "es"} tied to KPIs the creator proposed; the rest are Mercor's standard outcome levers.`
+      : `Quality-first contract for ${brandName}. Creator did not propose explicit KPIs, so all bonuses are Mercor's standard outcome levers.`;
+
+  return {
+    base_retainer_usd: baseRetainer,
+    cap_usd: cap,
+    bonuses: combined,
+    slop_tax_pct: 25,
+    rationale,
+  };
+}
+
+function parseUsd(raw: string): number | null {
+  const m = raw.match(/\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(k|K)?/);
+  if (!m) return null;
+  const base = Number(m[1].replace(/,/g, ""));
+  if (Number.isNaN(base)) return null;
+  return Math.round(base * (m[2] ? 1000 : 1));
+}
+
+function humanizeMetric(raw: string): string {
+  const v = raw.trim();
+  if (!v) return "Custom KPI";
+  // Map well-known short forms to nicer labels.
+  const map: Record<string, string> = {
+    "engagement-rate": "Engagement rate",
+    "engagement_rate": "Engagement rate",
+    "save-rate": "Save rate",
+    "save_rate": "Save rate",
+    "comment-relevance": "Comment relevance score",
+    "conversion": "Conversion rate",
+    "brand-search-lift": "Brand search lift",
+    "brand_search_lift": "Brand search lift",
+    "video-completion": "Video completion rate",
+  };
+  const key = v.toLowerCase();
+  if (map[key]) return map[key];
+  // Otherwise capitalize each space/dash/underscore-separated word.
+  return v
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
+    .join(" ");
 }
 
 async function geminiSummary(
@@ -343,68 +782,21 @@ async function geminiSummary(
 }
 
 // ---------------------------------------------------------------------------
-// Transcript-derived scoring rubric
+// Transcript-derived scoring rubric (vision-fallback signals)
 // ---------------------------------------------------------------------------
-// When vision frames are missing OR consistently neutral, scoring used to
-// pin to 50/50 across the board. That made every candidate look identical
-// in the admin view. Real interviewers can derive a lot of signal from the
-// transcript alone — specific numbers, named brands, post URLs, vocabulary
-// breadth, filler-word density, response-length consistency. We compute
-// those here and blend with the vision mean (when available) so confidence
-// and engagement actually move based on what the candidate said.
 
 const FILLER_WORDS = new Set([
-  "um",
-  "uh",
-  "uhh",
-  "umm",
-  "ah",
-  "ahh",
-  "er",
-  "hmm",
-  "hm",
-  "like",
-  "yeah",
-  "y'know",
-  "yknow",
-  "kinda",
-  "sorta",
-  "basically",
-  "literally",
-  "honestly",
-  "ok",
-  "okay",
-  "right",
-  "so",
+  "um", "uh", "uhh", "umm", "ah", "ahh", "er", "hmm", "hm",
+  "like", "yeah", "y'know", "yknow", "kinda", "sorta",
+  "basically", "literally", "honestly", "ok", "okay", "right", "so",
 ]);
 
-// Brand names we know recur in this domain. Hits boost confidence because
-// they signal the candidate has concrete reference points, not platitudes.
 const BRAND_VOCAB = [
-  "celsius",
-  "alani",
-  "alani nu",
-  "bucked up",
-  "ghost",
-  "ghost energy",
-  "bloom",
-  "bloom nutrition",
-  "ryse",
-  "gorgie",
-  "c4",
-  "optimum nutrition",
-  "magic mind",
-  "liquid death",
-  "olipop",
-  "create wellness",
-  "gymshark",
-  "lululemon",
-  "nike",
-  "athleta",
-  "alphalete",
-  "vital proteins",
-  "athletic greens",
-  "ag1",
+  "celsius", "alani", "alani nu", "bucked up", "ghost", "ghost energy",
+  "bloom", "bloom nutrition", "ryse", "gorgie", "c4", "optimum nutrition",
+  "magic mind", "liquid death", "olipop", "create wellness",
+  "gymshark", "lululemon", "nike", "athleta", "alphalete",
+  "vital proteins", "athletic greens", "ag1",
 ];
 
 function clamp01(n: number): number {
@@ -413,11 +805,8 @@ function clamp01(n: number): number {
 }
 
 interface TranscriptSignals {
-  // 0..1 score from speech patterns (specifics, vocabulary, filler density)
   confidence: number;
-  // 0..1 score from response depth + reactivity to questions
   engagement: number;
-  // breakdown so the AI summary can quote real numbers
   meanWords: number;
   fillerRatio: number;
   uniqueWordRatio: number;
@@ -441,7 +830,6 @@ function transcriptSignals(transcript: InterviewMessage[]): TranscriptSignals {
     };
   }
 
-  // Tokenize every candidate turn into lowercase words for shared analysis.
   const allTokens = userTurns.flatMap((t) =>
     t.content
       .toLowerCase()
@@ -450,26 +838,18 @@ function transcriptSignals(transcript: InterviewMessage[]): TranscriptSignals {
       .filter((w) => w.length > 0),
   );
 
-  // Mean words per answer. Short, terse answers tank engagement; verbose
-  // ones move it up but with diminishing returns past ~50 words.
   const meanWords = allTokens.length / userTurns.length;
-  const lengthBoost = clamp01((meanWords - 8) / 60); // 8 words = floor, 68 words = ceiling
+  const lengthBoost = clamp01((meanWords - 8) / 60);
 
-  // Filler density. Anything > 12% reads as nervous; < 4% reads as composed.
   const fillerCount = allTokens.filter((w) => FILLER_WORDS.has(w)).length;
   const fillerRatio = allTokens.length > 0 ? fillerCount / allTokens.length : 0;
-  const fillerPenalty = clamp01((fillerRatio - 0.04) / 0.16); // 4% → 0, 20% → 1
+  const fillerPenalty = clamp01((fillerRatio - 0.04) / 0.16);
 
-  // Vocabulary diversity. Type-token ratio across all answers (capped at
-  // 200 tokens because TTR drops naturally as length grows).
   const sample = allTokens.slice(0, 200);
   const unique = new Set(sample);
   const uniqueWordRatio = sample.length > 0 ? unique.size / sample.length : 0;
   const diversityBoost = clamp01((uniqueWordRatio - 0.35) / 0.45);
 
-  // Specifics: numbers, dollar amounts, percentages, named brands, post
-  // URLs. Each of these is direct evidence the candidate had a real
-  // reference point in mind.
   const numbersCited = userTurns.reduce((acc, t) => {
     const matches = t.content.match(/\b\d[\d,]*(?:\.\d+)?(?:%|k|m|usd|\$)?/gi);
     return acc + (matches?.length ?? 0);
@@ -484,8 +864,6 @@ function transcriptSignals(transcript: InterviewMessage[]): TranscriptSignals {
     .length;
   const urlsBoost = Math.min(0.15, postUrlsCited * 0.05);
 
-  // Reactivity: of the AI questions, what fraction did the candidate
-  // actually answer with a substantive turn (>= 6 tokens)?
   const aiTurns = transcript.filter((m) => m.role === "assistant").length;
   const substantiveAnswers = userTurns.filter(
     (t) =>
@@ -494,15 +872,12 @@ function transcriptSignals(transcript: InterviewMessage[]): TranscriptSignals {
         .filter((w) => w.length > 0).length >= 6,
   ).length;
   const reactivity = aiTurns > 0 ? substantiveAnswers / aiTurns : 0;
-  const reactivityBoost = clamp01(reactivity); // already 0..1
+  const reactivityBoost = clamp01(reactivity);
 
-  // ── Compose final scores ────────────────────────────────────────────
-  // Center each at 0.55 (slightly above neutral so a fully-prepared
-  // candidate can pin to 1.0 without needing every signal).
   const confidence = clamp01(
     0.45 +
       0.18 * diversityBoost +
-      0.18 * numbersBoost * 4 + // weighted because numbersBoost is small
+      0.18 * numbersBoost * 4 +
       0.14 * brandsBoost * 4 +
       0.10 * urlsBoost * 6 +
       0.10 * lengthBoost -
@@ -514,7 +889,7 @@ function transcriptSignals(transcript: InterviewMessage[]): TranscriptSignals {
       0.30 * reactivityBoost +
       0.20 * lengthBoost +
       0.10 * (urlsBoost > 0 ? 1 : 0) -
-      0.20 * (meanWords < 4 ? 1 : 0) - // single-word "yeah" / "no" answers tank engagement
+      0.20 * (meanWords < 4 ? 1 : 0) -
       0.15 * fillerPenalty,
   );
 
@@ -530,12 +905,8 @@ function transcriptSignals(transcript: InterviewMessage[]): TranscriptSignals {
   };
 }
 
-// Combine transcript-derived score with vision-derived mean. Weighting
-// reflects which signal is more reliable when both are present.
 function blend(transcriptScore: number, visionScore: number | null): number {
   if (visionScore == null) return transcriptScore;
-  // Vision is noisy on a single frame; weight it 35% so a confident speaker
-  // who happened to look down at notes once isn't dragged to 50%.
   return clamp01(0.65 * transcriptScore + 0.35 * visionScore);
 }
 
@@ -556,8 +927,6 @@ function aggregate(
         worstFrame: null,
       };
     }
-    // Emit transcript-derived scores when vision is unavailable so the
-    // admin view shows real differentiation per candidate.
     const evidence: string[] = [];
     if (sig.brandsMentioned.length > 0) {
       evidence.push(`named ${sig.brandsMentioned.length} brand${sig.brandsMentioned.length === 1 ? "" : "s"}`);
@@ -586,14 +955,11 @@ function aggregate(
   const visionEng =
     scores.reduce((acc, s) => acc + s.engagement, 0) / scores.length;
 
-  // Blend transcript signals with vision signals so neither path can pin
-  // the score to a flat 50%.
   const meanConf = blend(sig.confidence, visionConf);
   const meanEng = blend(sig.engagement, visionEng);
 
   const worstCheating = aggregateCheating(scores);
 
-  // Worst frame = highest cheating rank, breaking ties by lowest confidence.
   const worstFrame = scores
     .slice()
     .sort((a, b) => {
@@ -621,9 +987,9 @@ function aggregate(
   };
 }
 
-// Per-element validators — without these, a malicious or buggy client could
-// send `transcript: [42, "bad"]` and the aggregator would happily produce
-// NaN values. Validate the shape of every element before we trust it.
+// ---------------------------------------------------------------------------
+// Validators
+// ---------------------------------------------------------------------------
 
 function isInterviewMessage(v: unknown): v is InterviewMessage {
   if (!v || typeof v !== "object") return false;
@@ -662,27 +1028,25 @@ function isValidBody(b: unknown): b is InterviewFinalizeBody {
   ) {
     return false;
   }
-  // Strict ID format — prevents path traversal, key-collision, and oversized
-  // map keys.
   if (!ID_REGEX.test(o.creatorId)) return false;
   if (!ID_REGEX.test(o.campaignId)) return false;
-  // Optional rubricId — if present, must conform to the same ID format.
   if (o.rubricId !== undefined) {
     if (typeof o.rubricId !== "string") return false;
-    if (!ID_REGEX.test(o.rubricId)) return false;
+    if (!ID_REGEX.test(o.rubricId.replace(/^core-/, ""))) return false;
   }
-  // Cap the human-readable title at a sane length.
   if (o.campaignTitle.length > MAX_TITLE_LEN) return false;
-  // Reject malformed elements rather than letting NaN propagate downstream.
   if (!o.transcript.every(isInterviewMessage)) return false;
   if (!o.scores.every(isInterviewFrameScore)) return false;
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// HTTP
+// ---------------------------------------------------------------------------
+
 export async function POST(
   req: NextRequest,
 ): Promise<NextResponse<FinalizeResponse | ErrorResponse>> {
-  // Pre-parse content-length cap — reject oversized payloads early.
   const lenHeader = req.headers.get("content-length");
   if (lenHeader && Number(lenHeader) > MAX_BYTES) {
     return NextResponse.json({ error: "payload too large" }, { status: 413 });
@@ -701,13 +1065,22 @@ export async function POST(
 
   const stats = aggregate(body.scores, body.transcript);
 
-  // Pick the role-specific rubric so confidence/engagement aren't the only
-  // axis Aaron sees — Gemini grades each rubric criterion 0..5 with a
-  // rationale that quotes the candidate. Free-text summary still runs in
-  // parallel so we don't lose the natural-language verdict.
-  const rubric = getRubricById(body.rubricId);
+  // Resolve the brand-customized core rubric. If the body specifies a
+  // rubricId, prefer that (covers re-grading scenarios). Otherwise default
+  // to the campaign's brand-derived rubric.
+  const campaign = CAMPAIGNS_BY_ID[body.campaignId];
+  const rubric = body.rubricId
+    ? getRubricById(body.rubricId)
+    : campaign
+      ? getRubricById(`core-${campaign.brand_id}`)
+      : getRubricById(undefined);
 
-  const [llmSummary, criteria] = await Promise.all([
+  const brandName = campaign ? brandContextForCampaign(campaign).brand_name : "the brand";
+
+  // Run the three LLM calls in parallel: free-text summary, core rubric
+  // grading, structured ideas extraction. Only after ideas-extraction returns
+  // can we grade the ideas (depends on the extracted set).
+  const [llmSummary, criteria, ideas] = await Promise.all([
     geminiSummary(
       body.transcript,
       stats.confidence,
@@ -715,12 +1088,16 @@ export async function POST(
       stats.cheating,
       body.campaignTitle,
     ),
-    geminiRubric(body.transcript, rubric, body.campaignTitle),
+    geminiCoreRubric(body.transcript, rubric, body.campaignTitle),
+    geminiExtractIdeas(body.transcript, body.campaignTitle, brandName),
   ]);
 
-  // Compute the overall rubric grade (weighted mean of criterion scores
-  // normalized to 0..1). When Gemini didn't return rubric data we omit it
-  // so the UI can fall back to confidence/engagement-only display.
+  const ideaScores =
+    ideas && ideas.length > 0
+      ? await geminiGradeIdeas(ideas, brandName, body.campaignTitle)
+      : null;
+
+  // Compute the overall core rubric grade.
   let rubricOverall: number | undefined;
   if (criteria && criteria.length > 0) {
     const totalWeight = criteria.reduce((acc, c) => acc + c.weight, 0);
@@ -733,6 +1110,40 @@ export async function POST(
     }
   }
 
+  // Compute the ideas-bucket overall score (mean of (novelty/5*w1 +
+  // brand_creator_fit/5*w2 + potential/5*w3) over all ideas).
+  let ideasOverall: number | undefined;
+  if (ideaScores && ideaScores.length > 0) {
+    const w = IDEAS_RUBRIC.criteria;
+    const sum = ideaScores.reduce(
+      (acc, s) =>
+        acc +
+        (s.novelty / 5) * (w[0]?.weight ?? 0.35) +
+        (s.brand_creator_fit / 5) * (w[1]?.weight ?? 0.35) +
+        (s.potential / 5) * (w[2]?.weight ?? 0.30),
+      0,
+    );
+    ideasOverall = Number((sum / ideaScores.length).toFixed(3));
+  }
+
+  // Combined verdict — 60% core fit, 40% idea quality. Both must be
+  // present for the combined number to render; otherwise we leave it
+  // undefined and the UI falls back to whichever is available.
+  let combinedScore: number | undefined;
+  if (typeof rubricOverall === "number" && typeof ideasOverall === "number") {
+    combinedScore = Number((0.6 * rubricOverall + 0.4 * ideasOverall).toFixed(3));
+  } else if (typeof rubricOverall === "number") {
+    combinedScore = rubricOverall;
+  } else if (typeof ideasOverall === "number") {
+    combinedScore = ideasOverall;
+  }
+
+  // Insight-based contract recommendation derived from the creator's KPIs.
+  const contractRecommendation = deriveInsightPayouts(
+    ideas ?? [],
+    body.campaignId,
+  );
+
   const summary: InterviewSummary = {
     ...stats,
     summary: llmSummary ?? stats.summary,
@@ -740,6 +1151,11 @@ export async function POST(
     rubricLabel: rubric.label,
     rubricOverall,
     criteria: criteria ?? undefined,
+    ideas: ideas ?? undefined,
+    ideaScores: ideaScores ?? undefined,
+    ideasOverall,
+    combinedScore,
+    contractRecommendation,
   };
 
   const record: InterviewRecord = {
@@ -752,11 +1168,7 @@ export async function POST(
     finishedAt: body.finishedAt,
   };
 
-  // Index records by creator AND campaign so a candidate can have multiple
-  // submissions (one per role) without overwriting prior interviews.
   store().set(`${body.creatorId}:${body.campaignId}`, record);
-  // Also keep the latest record under the legacy key for backwards-compat
-  // with any caller still reading by creatorId alone.
   store().set(body.creatorId, record);
   return NextResponse.json({ ok: true, record });
 }
@@ -764,9 +1176,6 @@ export async function POST(
 export async function GET(
   req: NextRequest,
 ): Promise<NextResponse<InterviewRecord | ErrorResponse>> {
-  // Auth gate — full transcripts and integrity scores are sensitive.
-  // In production, set ADMIN_TOKEN to a strong random value. In dev (token
-  // unset) we allow access but log a single warning so the operator notices.
   const expected = process.env.ADMIN_TOKEN;
   const presented = req.headers.get("x-admin-token");
   if (expected) {
@@ -787,8 +1196,6 @@ export async function GET(
   if (!creatorId) {
     return NextResponse.json({ error: "creatorId required" }, { status: 400 });
   }
-  // Same regex check as POST — rejects malformed lookup keys before they hit
-  // the store.
   if (!ID_REGEX.test(creatorId)) {
     return NextResponse.json({ error: "invalid creatorId" }, { status: 400 });
   }

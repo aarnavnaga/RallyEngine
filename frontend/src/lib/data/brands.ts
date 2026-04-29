@@ -616,6 +616,20 @@ export const BRANDS_BY_ID: Record<string, Brand> = Object.fromEntries(
   BRANDS.map((b) => [b.id, b]),
 );
 
+// Name-keyed lookup so any surface that has only the human-readable brand
+// label (e.g. CONTRACTS[i].brand_label) can resolve back to a Brand record
+// to render the real logo. Keys are lowercased + stripped of punctuation so
+// "Bucked Up" and "bucked up" both hit the same record.
+function brandKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+export const BRANDS_BY_NAME: Record<string, Brand> = Object.fromEntries(
+  BRANDS.map((b) => [brandKey(b.name), b]),
+);
+export function getBrandByName(name: string): Brand | undefined {
+  return BRANDS_BY_NAME[brandKey(name)];
+}
+
 export const BRAND_DOMAINS = [
   "Software engineering",
   "Other engineering",

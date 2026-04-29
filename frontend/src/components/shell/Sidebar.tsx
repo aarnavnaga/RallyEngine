@@ -3,19 +3,18 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 // LOCKED ICON SET — copies work.mercor.com Logan-side sidebar 1:1.
-// DO NOT swap these icons. Logan reinforced 2026-04-27 with the work.mercor.com
-// /refer screenshot: "use these icons exactly forever and never change no
-// matter what". The mapping below is the canonical answer:
-//   Explore   → Search       (magnifying glass)
-//   Home      → Home          (house)
-//   Referrals → UserPlus      (single person + plus badge — NOT Users/group)
-//   Earnings  → CreditCard    (rectangular card)
-//   Profile   → User          (single person silhouette)
+// Mapping (Logan reconfirmed 2026-04-28 — Earnings now uses a money icon to
+// match the latest Mercor screenshot, not the older CreditCard variant):
+//   Explore   → Search             (magnifying glass)
+//   Home      → Home                (house)
+//   Referrals → UserPlus            (single person + plus badge — NOT Users/group)
+//   Earnings  → CircleDollarSign    (dollar sign in a circle — the live mercor.com sidebar)
+//   Profile   → User                (single person silhouette)
 import {
   Search,
   Home,
   UserPlus,
-  CreditCard,
+  CircleDollarSign,
   User as UserIcon,
   LayoutDashboard,
   TableProperties,
@@ -37,7 +36,7 @@ const CREATOR_ITEMS: Item[] = [
   { href: "/explore", label: "Explore", icon: Search },
   { href: "/home", label: "Home", icon: Home },
   { href: "/referrals", label: "Referrals", icon: UserPlus },
-  { href: "/earnings", label: "Earnings", icon: CreditCard },
+  { href: "/earnings", label: "Earnings", icon: CircleDollarSign },
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 

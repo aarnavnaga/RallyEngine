@@ -604,8 +604,15 @@ function AssessmentsTab() {
               Assessments are the quickest way to unlock more opportunities. Many roles share the same requirements, so once you&apos;ve passed an assessment, you&apos;re automatically considered for any new matching roles in the future. No extra applications, no extra hassle.
             </p>
           </div>
-          <div className="flex gap-4 lg:-mb-24">
+          <div className="flex items-stretch gap-4 lg:-mb-24">
             {[
+              {
+                name: "Influencer Video Assessment",
+                duration: "20 minutes",
+                desc: "On-camera audience-fit interview — brand voice + hook quality.",
+                roles: 4,
+                pay: "$120/hourly",
+              },
               {
                 name: "Brainstorming Session",
                 duration: "16 minutes",
@@ -620,17 +627,10 @@ function AssessmentsTab() {
                 roles: 0,
                 pay: "$0/hourly",
               },
-              {
-                name: "Influencer Video Assessment",
-                duration: "20 minutes",
-                desc: "On-camera audience-fit interview — brand-voice match, hook quality, call-to-action delivery",
-                roles: 4,
-                pay: "$120/hourly",
-              },
             ].map((card) => (
               <div
                 key={card.name}
-                className="w-[260px] shrink-0 rounded-[14px] bg-white p-5 shadow-[0_12px_28px_rgba(15,7,52,0.22)]"
+                className="flex w-[260px] shrink-0 flex-col rounded-[14px] bg-white p-5 shadow-[0_12px_28px_rgba(15,7,52,0.22)]"
               >
                 <div className="flex items-center gap-1.5 text-[12px] text-[var(--fg-muted)]">
                   <Clock size={12} strokeWidth={1.7} />
@@ -639,17 +639,17 @@ function AssessmentsTab() {
                 <div className="mt-2.5 text-[17px] font-semibold leading-snug text-[var(--fg)]">
                   {card.name}
                 </div>
-                <span className="mt-2 inline-block rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
+                <span className="mt-2 inline-block self-start rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
                   CORE
                 </span>
-                <p className="mt-3 text-[12px] leading-snug text-[var(--fg-muted)]">{card.desc}</p>
+                <p className="mt-3 min-h-[48px] text-[12px] leading-snug text-[var(--fg-muted)]">{card.desc}</p>
                 <div className="mt-3 text-[12px] text-[var(--fg-muted)]">
                   Used by <span className="font-semibold text-[var(--fg)]">{card.roles} roles</span>
                 </div>
                 <div className="text-[12px] text-[var(--fg-muted)]">
                   Paying up to <span className="font-semibold text-[var(--fg)]">{card.pay}</span>
                 </div>
-                <button className="mt-4 w-full rounded-[8px] bg-[var(--accent)] py-2 text-[13px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors">
+                <button className="mt-auto w-full rounded-[8px] bg-[var(--accent)] py-2 text-[13px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors pt-2 pb-2 mt-4">
                   Start interview
                 </button>
               </div>

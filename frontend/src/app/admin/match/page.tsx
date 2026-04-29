@@ -19,11 +19,34 @@ import {
   type ImpactBreakdown,
 } from "@/lib/util/score";
 
+function MatchHeader() {
+  return (
+    <>
+      <div className="flex items-baseline justify-between">
+        <h1 className="h-display text-[28px]">Match workbench</h1>
+        <span className="text-[12px] text-[var(--fg-muted)]">
+          Transparent ranking · cosine similarity + impact score
+        </span>
+      </div>
+      <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
+        Pick a brand. Pick creators. Generate outreach. Every score has a reason; expand any row to see the cited posts.
+      </p>
+    </>
+  );
+}
+
 export default function MatchPage() {
   return (
-    <Suspense fallback={<div className="text-[13px] text-[var(--fg-muted)]">Loading workbench…</div>}>
-      <MatchInner />
-    </Suspense>
+    <div>
+      <MatchHeader />
+      <Suspense
+        fallback={
+          <div className="mt-6 text-[13px] text-[var(--fg-muted)]">Loading workbench…</div>
+        }
+      >
+        <MatchInner />
+      </Suspense>
+    </div>
   );
 }
 
@@ -79,16 +102,6 @@ function MatchInner() {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <h1 className="h-display text-[28px]">Match workbench</h1>
-        <span className="text-[12px] text-[var(--fg-muted)]">
-          Transparent ranking · cosine similarity + impact score
-        </span>
-      </div>
-      <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
-        Pick a brand. Pick creators. Generate outreach. Every score has a reason; expand any row to see the cited posts.
-      </p>
-
       {/* Brand selector */}
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-4">

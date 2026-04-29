@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
 import { BRANDS_BY_ID } from "@/lib/data/brands";
 import { LOGAN } from "@/lib/data/creators";
+import { getRubricIdForCampaign } from "@/lib/data/rubrics";
 import { fmtFollowers } from "@/lib/util/score";
 import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { ClaudeMark } from "@/components/shell/ClaudeMark";
@@ -93,7 +94,12 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
   // interview again after they finish, navigate off, and come back. The
   // VideoInterviewStep persists to localStorage on finalize; we mirror that
   // here so the apply page stepper knows the interview was already done.
-  const INTERVIEW_KEY = `mercor.interview.${LOGAN.id}.v1`;
+  // Per-campaign storage key: every role gets its own submission so a
+  // candidate can apply to (and complete) multiple interviews. Falls back
+  // to the legacy creator-only key for any cached record written by the
+  // pre-rubric build.
+  const INTERVIEW_KEY = `mercor.interview.${LOGAN.id}.${id}.v1`;
+  const LEGACY_INTERVIEW_KEY = `mercor.interview.${LOGAN.id}.v1`;
   type CachedInterview = {
     transcript?: { role: "user" | "assistant"; content: string; ts: string }[];
     summary?: string;
@@ -106,7 +112,26 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const raw = window.localStorage.getItem(INTERVIEW_KEY);
+      // Prefer the per-campaign record. If the user previously submitted
+      // an interview for THIS specific role, we surface that. Otherwise we
+      // intentionally do NOT surface a cached interview from a different
+      // role — that previous decision (1 interview reused everywhere) made
+      // role-specific rubric grades meaningless because a Celsius
+      // submission would mark the Bucked Up Creator Interview step done.
+      const raw =
+        window.localStorage.getItem(INTERVIEW_KEY) ??
+        // Backwards-compat: only honor the legacy single-key cache when
+        // the cached record was actually for THIS campaign.
+        (() => {
+          const legacy = window.localStorage.getItem(LEGACY_INTERVIEW_KEY);
+          if (!legacy) return null;
+          try {
+            const parsed = JSON.parse(legacy) as CachedInterview;
+            return parsed.campaignId === id ? legacy : null;
+          } catch {
+            return null;
+          }
+        })();
       if (!raw) return;
       const parsed = JSON.parse(raw) as CachedInterview;
       setCachedInterview(parsed);
@@ -229,6 +254,7 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
             campaignId={c.id}
             campaignTitle={c.title}
             done={done.interview}
+            rubricId={getRubricIdForCampaign(c)}
             onComplete={() => {
               setDone((d) => ({ ...d, interview: true }));
               // Re-read the cache the VideoInterviewStep just wrote so the

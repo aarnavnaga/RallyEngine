@@ -66,6 +66,10 @@ interface VideoInterviewStepProps {
   // Optional descriptive blurb rendered under "This is an AI interview" in
   // mercorStyle. Falls back to a creator-economy default.
   preflightDescription?: string;
+  // Role-specific rubric id used by /api/interview/finalize to grade the
+  // interview against role-aware criteria. When omitted, the server falls
+  // back to the creator-default rubric.
+  rubricId?: string;
 }
 
 // Minimal Web Speech API typings, kept local because TS lib doesn't ship them.
@@ -169,6 +173,7 @@ export function VideoInterviewStep({
   onFallbackToText,
   mercorStyle = false,
   preflightDescription,
+  rubricId,
 }: VideoInterviewStepProps): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>("idle");
   const [permissions, setPermissions] = useState<Permissions>({ audio: false, video: false });
@@ -521,13 +526,15 @@ export function VideoInterviewStep({
         transcript: latestMessages,
         scores: latestScores,
         finishedAt,
+        rubricId,
       };
 
       let summary = "";
+      let serverRecord: unknown = null;
       const lifetimeSignal = abortRef.current?.signal;
       const finalizeSignal = lifetimeSignal
-        ? AbortSignal.any([lifetimeSignal, AbortSignal.timeout(10_000)])
-        : AbortSignal.timeout(10_000);
+        ? AbortSignal.any([lifetimeSignal, AbortSignal.timeout(20_000)])
+        : AbortSignal.timeout(20_000);
       try {
         const resp = await fetch("/api/interview/finalize", {
           method: "POST",
@@ -539,17 +546,22 @@ export function VideoInterviewStep({
         if (resp.ok) {
           const data = (await resp.json()) as {
             ok: boolean;
-            record: { summary: { summary: string } };
+            record?: { summary?: { summary?: string } };
           };
           summary = data.record?.summary?.summary ?? "";
+          serverRecord = data.record ?? null;
         }
       } catch {
         // Persistence error is non-fatal for the user's flow.
       }
       if (lifetimeSignal?.aborted) return;
 
-      // Always write to localStorage so the admin card sees it even if the
-      // server-side store is empty (e.g. dev reload).
+      // Persist BOTH per-campaign and per-candidate keys so:
+      //   1. apply pages for any single campaign read the right submission
+      //   2. /admin/interviews/<creatorId> can list all submissions
+      //   3. legacy callers reading by creatorId alone still see the latest
+      // Plus an index ([campaignId, ...]) so the admin can enumerate without
+      // scanning all of localStorage.
       try {
         const local = {
           transcript: latestMessages,
@@ -558,11 +570,27 @@ export function VideoInterviewStep({
           finishedAt,
           campaignId,
           campaignTitle,
+          rubricId,
+          // Server side computed everything; carry the full summary object
+          // so the admin can render rubric criteria + LLM rationale without
+          // re-calling the endpoint.
+          record: serverRecord,
         };
-        localStorage.setItem(
-          `${STORAGE_KEY_PREFIX}${creatorId}.${STORAGE_VERSION}`,
-          JSON.stringify(local),
-        );
+        const perCampaignKey = `${STORAGE_KEY_PREFIX}${creatorId}.${campaignId}.${STORAGE_VERSION}`;
+        const legacyKey = `${STORAGE_KEY_PREFIX}${creatorId}.${STORAGE_VERSION}`;
+        localStorage.setItem(perCampaignKey, JSON.stringify(local));
+        localStorage.setItem(legacyKey, JSON.stringify(local));
+        // Maintain the per-candidate index of campaign IDs.
+        const indexKey = `${STORAGE_KEY_PREFIX}${creatorId}.index.${STORAGE_VERSION}`;
+        let prior: string[] = [];
+        try {
+          const raw = localStorage.getItem(indexKey);
+          if (raw) prior = JSON.parse(raw) as string[];
+        } catch {
+          // ignore corrupt index, rebuild
+        }
+        if (!prior.includes(campaignId)) prior.unshift(campaignId);
+        localStorage.setItem(indexKey, JSON.stringify(prior));
       } catch {
         // localStorage may be disabled (incognito / quota) — non-fatal.
       }
@@ -575,6 +603,7 @@ export function VideoInterviewStep({
       campaignId,
       campaignTitle,
       creatorId,
+      rubricId,
       onComplete,
       stopFrameCapture,
       stopMediaStream,

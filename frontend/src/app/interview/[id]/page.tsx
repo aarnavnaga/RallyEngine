@@ -4,6 +4,7 @@ import { Suspense, use, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
 import { LOGAN } from "@/lib/data/creators";
+import { getRubricIdForCampaign } from "@/lib/data/rubrics";
 import { VideoInterviewStep } from "@/components/apply/VideoInterviewStep";
 
 /**
@@ -69,6 +70,7 @@ function InterviewPageInner({ id }: { id: string }) {
         onComplete={onComplete}
         onFallbackToText={onFallbackToText}
         mercorStyle
+        rubricId={getRubricIdForCampaign(campaign)}
       />
       {done ? (
         <div className="mx-auto mt-6 flex max-w-[1100px] items-center justify-between rounded-md border border-[var(--success)] bg-[var(--success-soft)] px-4 py-3 text-[13px] text-[var(--success)]">

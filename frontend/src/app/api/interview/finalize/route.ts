@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CheatingLevel } from "@/app/api/interview/observe/route";
+import { getRubricById, type Rubric } from "@/lib/data/rubrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,20 @@ export interface InterviewFinalizeBody {
   transcript: InterviewMessage[];
   scores: InterviewFrameScore[];
   finishedAt: string;
+  // Optional — picks the role-specific rubric used to grade the interview.
+  // Falls back to the creator-default rubric if missing or unrecognized.
+  rubricId?: string;
+}
+
+export interface RubricCriterionScore {
+  id: string;
+  label: string;
+  /** 0..5 from the LLM grader */
+  score: number;
+  /** One-clause justification quoting the candidate when possible. */
+  rationale: string;
+  /** weight inherited from the rubric so the UI can render the breakdown. */
+  weight: number;
 }
 
 export interface InterviewSummary {
@@ -38,6 +53,13 @@ export interface InterviewSummary {
   summary: string;
   // The single worst frame (highest cheating signal, then lowest confidence).
   worstFrame: InterviewFrameScore | null;
+  // Role-aware rubric grade. When the LLM call succeeds, criteria has one
+  // entry per rubric criterion with a 0..5 score + rationale, and overall
+  // is the weighted mean of those scores normalized to 0..1.
+  rubricId?: string;
+  rubricLabel?: string;
+  rubricOverall?: number;
+  criteria?: RubricCriterionScore[];
 }
 
 export interface InterviewRecord {
@@ -152,6 +174,114 @@ function aggregateCheating(scores: InterviewFrameScore[]): CheatingLevel {
 // we fall back to the deterministic synthetic summary in `aggregate`.
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+// LLM rubric grader. Returns per-criterion 0-5 scores + rationales,
+// keyed by the rubric we picked for the campaign. Falls back to null on
+// any failure so the synthetic aggregate still works.
+async function geminiRubric(
+  transcript: InterviewMessage[],
+  rubric: Rubric,
+  campaignTitle: string,
+): Promise<RubricCriterionScore[] | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  const userTurns = transcript.filter((m) => m.role === "user");
+  if (userTurns.length === 0) return null;
+
+  const transcriptText = transcript
+    .map((m) => `${m.role === "assistant" ? "Interviewer" : "Candidate"}: ${m.content}`)
+    .join("\n");
+
+  const criterionLines = rubric.criteria
+    .map((c, i) => `${i + 1}. ${c.id} ("${c.label}"): ${c.prompt}`)
+    .join("\n");
+  const idsForJson = rubric.criteria.map((c) => `"${c.id}"`).join(" | ");
+
+  const systemText = [
+    `You are grading a Mercor AI interview against the "${rubric.label}" rubric for the role: ${campaignTitle}.`,
+    `Rubric description: ${rubric.description}`,
+    "",
+    "Criteria:",
+    criterionLines,
+    "",
+    "Output STRICT JSON ONLY. Schema:",
+    `{"criteria":[{"id":${idsForJson},"score":0..5,"rationale":"<short, quotes a candidate phrase>"} ...]}`,
+    "Rules:",
+    "- Score each criterion an integer 0..5. 0 = absent, 3 = adequate, 5 = excellent.",
+    "- Each rationale must be one short sentence (under 25 words) and quote a phrase the candidate actually said when possible.",
+    "- Be strict — do not give 5 unless the candidate clearly nailed that criterion.",
+    "- Do not include any other fields, prose, or markdown. JSON only.",
+  ].join("\n");
+
+  try {
+    const resp = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemText }] },
+        contents: [{ role: "user", parts: [{ text: transcriptText }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 600,
+          topP: 0.9,
+          responseMimeType: "application/json",
+        },
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!resp.ok) return null;
+    interface RubricResp {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    }
+    const data = (await resp.json()) as RubricResp;
+    const text = data.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text ?? "")
+      .join("")
+      .trim();
+    if (!text) return null;
+    const cleaned = text
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+    if (!parsed || typeof parsed !== "object") return null;
+    const candidate = (parsed as { criteria?: unknown }).criteria;
+    if (!Array.isArray(candidate)) return null;
+    // Re-shape into our RubricCriterionScore[] preserving rubric weight +
+    // label, validating each entry. Any criterion the LLM dropped or
+    // mangled gets a neutral 2.5 score with a "no data" rationale so the
+    // weighted mean still computes.
+    const out: RubricCriterionScore[] = rubric.criteria.map((c) => {
+      const match = candidate.find(
+        (x) => typeof x === "object" && x !== null && (x as { id?: unknown }).id === c.id,
+      ) as { score?: unknown; rationale?: unknown } | undefined;
+      const rawScore = typeof match?.score === "number" ? match.score : 2.5;
+      const score = Math.max(0, Math.min(5, rawScore));
+      const rationale =
+        typeof match?.rationale === "string" && match.rationale.length > 0
+          ? match.rationale.slice(0, 240)
+          : "No clear evidence in transcript.";
+      return {
+        id: c.id,
+        label: c.label,
+        weight: c.weight,
+        score,
+        rationale,
+      };
+    });
+    return out;
+  } catch {
+    return null;
+  }
+}
 
 async function geminiSummary(
   transcript: InterviewMessage[],
@@ -536,6 +666,11 @@ function isValidBody(b: unknown): b is InterviewFinalizeBody {
   // map keys.
   if (!ID_REGEX.test(o.creatorId)) return false;
   if (!ID_REGEX.test(o.campaignId)) return false;
+  // Optional rubricId — if present, must conform to the same ID format.
+  if (o.rubricId !== undefined) {
+    if (typeof o.rubricId !== "string") return false;
+    if (!ID_REGEX.test(o.rubricId)) return false;
+  }
   // Cap the human-readable title at a sane length.
   if (o.campaignTitle.length > MAX_TITLE_LEN) return false;
   // Reject malformed elements rather than letting NaN propagate downstream.
@@ -566,17 +701,46 @@ export async function POST(
 
   const stats = aggregate(body.scores, body.transcript);
 
-  // Try to upgrade the synthetic summary with a real Gemini-generated one
-  // that quotes the candidate. Falls back to the deterministic synthetic
-  // text on any failure (no key, timeout, empty response).
-  const llm = await geminiSummary(
-    body.transcript,
-    stats.confidence,
-    stats.engagement,
-    stats.cheating,
-    body.campaignTitle,
-  );
-  const summary: InterviewSummary = llm ? { ...stats, summary: llm } : stats;
+  // Pick the role-specific rubric so confidence/engagement aren't the only
+  // axis Aaron sees — Gemini grades each rubric criterion 0..5 with a
+  // rationale that quotes the candidate. Free-text summary still runs in
+  // parallel so we don't lose the natural-language verdict.
+  const rubric = getRubricById(body.rubricId);
+
+  const [llmSummary, criteria] = await Promise.all([
+    geminiSummary(
+      body.transcript,
+      stats.confidence,
+      stats.engagement,
+      stats.cheating,
+      body.campaignTitle,
+    ),
+    geminiRubric(body.transcript, rubric, body.campaignTitle),
+  ]);
+
+  // Compute the overall rubric grade (weighted mean of criterion scores
+  // normalized to 0..1). When Gemini didn't return rubric data we omit it
+  // so the UI can fall back to confidence/engagement-only display.
+  let rubricOverall: number | undefined;
+  if (criteria && criteria.length > 0) {
+    const totalWeight = criteria.reduce((acc, c) => acc + c.weight, 0);
+    if (totalWeight > 0) {
+      const weighted = criteria.reduce(
+        (acc, c) => acc + (c.score / 5) * c.weight,
+        0,
+      );
+      rubricOverall = Number((weighted / totalWeight).toFixed(3));
+    }
+  }
+
+  const summary: InterviewSummary = {
+    ...stats,
+    summary: llmSummary ?? stats.summary,
+    rubricId: rubric.id,
+    rubricLabel: rubric.label,
+    rubricOverall,
+    criteria: criteria ?? undefined,
+  };
 
   const record: InterviewRecord = {
     creatorId: body.creatorId,
@@ -588,6 +752,11 @@ export async function POST(
     finishedAt: body.finishedAt,
   };
 
+  // Index records by creator AND campaign so a candidate can have multiple
+  // submissions (one per role) without overwriting prior interviews.
+  store().set(`${body.creatorId}:${body.campaignId}`, record);
+  // Also keep the latest record under the legacy key for backwards-compat
+  // with any caller still reading by creatorId alone.
   store().set(body.creatorId, record);
   return NextResponse.json({ ok: true, record });
 }

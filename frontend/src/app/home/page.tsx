@@ -186,6 +186,11 @@ function AssessmentRow({ a }: { a: Assessment }) {
   const btnCls = isCompleted
     ? "text-[12px] font-medium text-[var(--accent)] hover:underline"
     : "rounded-[8px] bg-[var(--accent)] px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors";
+  // Every assessment opens the dedicated /interview/<slug> route so the
+  // candidate gets the Mercor-style preflight + camera + AI flow, with a
+  // returnPath that brings them back to this very tab on completion.
+  const returnPath = "/home?tab=assessments";
+  const href = `/interview/${a.slug}?returnPath=${encodeURIComponent(returnPath)}`;
 
   return (
     <div
@@ -238,7 +243,9 @@ function AssessmentRow({ a }: { a: Assessment }) {
           <span>Available for upcoming opportunities</span>
         )}
       </div>
-      <button className={btnCls}>{btnLabel}</button>
+      <Link href={href} className={btnCls} data-test-id={`home-assessment-cta-${a.slug}`}>
+        {btnLabel}
+      </Link>
     </div>
   );
 }
@@ -351,16 +358,87 @@ function ContractCard({ contract: c }: { contract: Contract }) {
 }
 
 function OffersTab() {
+  // Local-only offer state so Pass / Accept actually do something for the
+  // demo. We persist decisions to localStorage so the UI doesn't reset on
+  // refresh — the brand-customer endpoint isn't wired up.
+  const STORAGE_KEY = "mercor.offers.decisions.v1";
+  const [decisions, setDecisions] = useState<Record<string, "passed" | "accepted">>({});
+  const [accepted, setAccepted] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) setDecisions(JSON.parse(raw));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function persist(next: Record<string, "passed" | "accepted">) {
+    setDecisions(next);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }
+
+  function onPass(id: string) {
+    persist({ ...decisions, [id]: "passed" });
+  }
+  function onAccept(o: Offer) {
+    persist({ ...decisions, [o.id]: "accepted" });
+    setAccepted(o.brand_label);
+    // Auto-dismiss the success banner after 4s.
+    window.setTimeout(() => setAccepted(null), 4000);
+  }
+
+  const remaining = OFFERS.filter((o) => !decisions[o.id]);
+
   return (
     <div className="space-y-3">
-      {OFFERS.map((o) => (
-        <OfferCard key={o.id} offer={o} />
-      ))}
+      {accepted ? (
+        <div
+          className="flex items-center justify-between rounded-md border border-[var(--success)] bg-[var(--success-soft)] px-4 py-2.5 text-[13px] text-[var(--success)]"
+          role="status"
+        >
+          <span>
+            Offer accepted from <span className="font-semibold">{accepted}</span>. The
+            contract will land in your Contracts tab within 24 hours.
+          </span>
+          <button
+            type="button"
+            onClick={() => setAccepted(null)}
+            aria-label="Dismiss"
+            className="text-[12px] underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+      {remaining.length === 0 ? (
+        <div className="rounded-[8px] border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--fg-muted)]">
+          No active offers. We&apos;ll surface new ones here as they come in.
+        </div>
+      ) : (
+        remaining.map((o) => (
+          <OfferCard key={o.id} offer={o} onPass={onPass} onAccept={onAccept} />
+        ))
+      )}
     </div>
   );
 }
 
-function OfferCard({ offer: o }: { offer: Offer }) {
+function OfferCard({
+  offer: o,
+  onPass,
+  onAccept,
+}: {
+  offer: Offer;
+  onPass: (id: string) => void;
+  onAccept: (o: Offer) => void;
+}) {
   const subtitle = [o.pay_label, o.brand_label].filter(Boolean).join(" · ");
   return (
     <div
@@ -380,10 +458,20 @@ function OfferCard({ offer: o }: { offer: Offer }) {
         <span className="hidden text-[11px] text-[var(--fg-muted)] md:inline">
           Expires in {o.expires_in_days}d
         </span>
-        <button className="rounded-[6px] border border-[var(--border)] px-3 py-1 text-[12px] font-medium hover:bg-[var(--bg-hover)] transition-colors">
+        <button
+          type="button"
+          onClick={() => onPass(o.id)}
+          data-test-id={`home-offer-${o.id}-pass`}
+          className="rounded-[6px] border border-[var(--border)] px-3 py-1 text-[12px] font-medium hover:bg-[var(--bg-hover)] transition-colors"
+        >
           Pass
         </button>
-        <button className="rounded-[6px] bg-[var(--accent)] px-3 py-1 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors">
+        <button
+          type="button"
+          onClick={() => onAccept(o)}
+          data-test-id={`home-offer-${o.id}-accept`}
+          className="rounded-[6px] bg-[var(--accent)] px-3 py-1 text-[12px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
+        >
           Accept
         </button>
       </div>

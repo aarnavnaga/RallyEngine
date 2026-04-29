@@ -103,6 +103,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={value}>
       {children}
+      {/*
+        Toast UI intentionally suppressed for the live demo so nothing
+        distracts during walkthroughs. We keep the provider + context
+        intact so existing call sites still compile and toasts() still
+        returns the array shape, but render nothing. To re-enable, replace
+        the `false &&` below with the real toasts.map() block kept in git
+        history.
+      */}
+      {false && (
       <div className="pointer-events-none fixed top-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map((t) => {
           const isLeaving = t.state === "leaving";
@@ -175,6 +184,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           );
         })}
       </div>
+      )}
     </ToastCtx.Provider>
   );
 }

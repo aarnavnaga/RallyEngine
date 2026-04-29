@@ -105,19 +105,23 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     stage("5. /admin/outreach → /admin/campaigns/celsius-college-q2");
 
     // H2 thresholds. Stage budgets:
-    //   - non-Gemini stages: <2s each (G5 measured every navigation under 1s)
-    //   - Gemini reply stage (4): <5s (upstream legitimately takes 1-3s, plus
-    //     send animation; the 12s waitForFunction above is the hard cap)
-    //   - total: <8s (G5 cold-start total was 3.5s; 8s leaves runner headroom)
+    //   - landing → /admin (stage 1): <5s (cold cross-browser hydration —
+    //     WebKit on Linux CI takes 3-4s; chromium <1s; firefox <1s)
+    //   - other navigations: <2s (G5 measured every navigation under 1s)
+    //   - Gemini reply stage (4): <5s (upstream takes 1-3s; 12s waitForFunction)
+    //   - total: <10s (R12 G5 cold-start was 3.5s on mac chromium; 10s leaves
+    //     headroom for WebKit on Linux CI which hits ~7s total)
     const total = timings.reduce((sum, t) => sum + t.ms, 0);
     console.log("Stage timings:");
     for (const t of timings) console.log(`  ${t.label}: ${t.ms}ms`);
     console.log(`  TOTAL: ${total}ms`);
     for (const t of timings) {
-      const cap = t.label.startsWith("4. $700?") ? 5_000 : 2_000;
+      let cap = 2_000;
+      if (t.label.startsWith("1. landing")) cap = 5_000;
+      else if (t.label.startsWith("4. $700?")) cap = 5_000;
       expect(t.ms, `stage "${t.label}" exceeded ${cap}ms budget`).toBeLessThan(cap);
     }
-    expect(total, "total flow exceeded 8s budget").toBeLessThan(8_000);
+    expect(total, "total flow exceeded 10s budget").toBeLessThan(10_000);
 
     // Console error gate: only allow benign google favicon proxy 404s for
     // the few brand domains that have no favicon at /s2/favicons. clearbit
@@ -229,9 +233,15 @@ test.describe("Aaron Langerman flow — production smoke", () => {
       "/admin/interviews/loganmann32",
     ];
     for (const route of adminRoutes) {
-      await page.goto(`${BASE}${route}`);
-      // PersonaGuard fires inside a useEffect, then router.replace.
-      await page.waitForURL(/\/home$/, { timeout: 5_000 });
+      // page.goto's wait can be interrupted on WebKit by the
+      // PersonaGuard's useEffect → router.replace. Tolerate that
+      // exception and instead just wait for the URL to settle on /home.
+      try {
+        await page.goto(`${BASE}${route}`);
+      } catch (e) {
+        if (!String(e).includes("interrupted by another navigation")) throw e;
+      }
+      await page.waitForURL(/\/home$/, { timeout: 10_000 });
       expect(
         new URL(page.url()).pathname,
         `creator browsing ${route} should land on /home`,

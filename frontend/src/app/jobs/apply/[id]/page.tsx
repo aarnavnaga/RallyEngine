@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
@@ -43,6 +43,48 @@ export default function ApplyPage({ params }: { params: Promise<{ id: string }> 
   });
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [igConnected, setIgConnected] = useState(false);
+
+  // Connect-once persistence: TikTok + IG connections live on the user
+  // profile, not per-application, so once Logan connects them in any apply
+  // flow they auto-import for every subsequent application. The user can
+  // revoke from Profile → Communications. Stored as a boolean tuple in
+  // localStorage so the state survives page reloads on Vercel preview where
+  // we have no backend.
+  const SOCIALS_KEY = "mercor.socials.connected.v1";
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(SOCIALS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { tiktok?: boolean; ig?: boolean };
+      const t = parsed.tiktok === true;
+      const ig = parsed.ig === true;
+      if (t) setTiktokConnected(true);
+      if (ig) setIgConnected(true);
+      if (t && ig) {
+        setDone((d) => ({ ...d, socials: true }));
+        // If socials is already complete, default the user to the next
+        // un-done step so they don't have to click past a finished card.
+        setActiveStep((curr) =>
+          curr === "socials" ? "interview" : curr,
+        );
+      }
+    } catch {
+      // Corrupt JSON or quota error — non-fatal, just start fresh.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        SOCIALS_KEY,
+        JSON.stringify({ tiktok: tiktokConnected, ig: igConnected }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [tiktokConnected, igConnected]);
   const [interviewAnswers, setInterviewAnswers] = useState<string[]>(["", "", "", "", ""]);
   const [pageOf, setPageOf] = useState(0);
   const [useTextInterview, setUseTextInterview] = useState<boolean>(false);

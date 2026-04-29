@@ -1,7 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Mic, MicOff, Video, VideoOff, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  Camera,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  AlertTriangle,
+  CheckCircle2,
+  Volume2,
+  Info,
+  Clock,
+  Hand,
+  RefreshCcw,
+  Lock,
+  CalendarDays,
+  ChevronDown,
+} from "lucide-react";
 import { ClaudeMark } from "@/components/shell/ClaudeMark";
 import type {
   InterviewFrameScore,
@@ -42,6 +58,14 @@ interface VideoInterviewStepProps {
   onComplete: () => void;
   // Called when the user's browser does not support voice or denies permissions.
   onFallbackToText: () => void;
+  // When true, render the Mercor-style two-column pre-flight (live camera +
+  // device pickers + info column with tooltipped underlines + big Start CTA)
+  // matching work.mercor.com/interview/<id>. When false (default), use the
+  // compact card pre-flight that fits inside the apply-page right rail.
+  mercorStyle?: boolean;
+  // Optional descriptive blurb rendered under "This is an AI interview" in
+  // mercorStyle. Falls back to a creator-economy default.
+  preflightDescription?: string;
 }
 
 // Minimal Web Speech API typings, kept local because TS lib doesn't ship them.
@@ -136,6 +160,8 @@ export function VideoInterviewStep({
   done,
   onComplete,
   onFallbackToText,
+  mercorStyle = false,
+  preflightDescription,
 }: VideoInterviewStepProps): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>("idle");
   const [permissions, setPermissions] = useState<Permissions>({ audio: false, video: false });
@@ -150,6 +176,15 @@ export function VideoInterviewStep({
   // Consent gate — must be true before we can request camera/mic. Disclosed
   // pre-flight so candidates know frames go to Gemini for scoring.
   const [consentGiven, setConsentGiven] = useState<boolean>(false);
+  // Device enumeration for the Mercor-style preflight (3 dropdowns: mic,
+  // speaker, camera). Populated after the first successful getUserMedia call
+  // because labels are only exposed once the user has granted permission.
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioIn, setSelectedAudioIn] = useState<string>("");
+  const [selectedAudioOut, setSelectedAudioOut] = useState<string>("");
+  const [selectedVideoIn, setSelectedVideoIn] = useState<string>("");
 
   const sttSupported = useMemo<boolean>(() => getSpeechRecognitionCtor() !== null, []);
 
@@ -766,6 +801,54 @@ export function VideoInterviewStep({
     });
   }, [permissions.video, phase]);
 
+  // Enumerate devices for the Mercor-style preflight dropdowns. Browsers
+  // only expose device labels (and sometimes the full device list) AFTER a
+  // permission has been granted, so we fire this on permission flip rather
+  // than on mount. We also re-run it on `devicechange` so plugging/unplugging
+  // a headset updates the picker live.
+  useEffect(() => {
+    if (!mercorStyle) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const list = await navigator.mediaDevices.enumerateDevices();
+        if (cancelled) return;
+        const ai = list.filter((d) => d.kind === "audioinput");
+        const ao = list.filter((d) => d.kind === "audiooutput");
+        const vi = list.filter((d) => d.kind === "videoinput");
+        setAudioInputs(ai);
+        setAudioOutputs(ao);
+        setVideoInputs(vi);
+        // Seed selections from whatever the active stream is using so the
+        // dropdown reflects reality on first paint.
+        const stream = streamRef.current;
+        if (stream) {
+          const a = stream.getAudioTracks()[0]?.getSettings().deviceId;
+          const v = stream.getVideoTracks()[0]?.getSettings().deviceId;
+          if (typeof a === "string") setSelectedAudioIn(a);
+          if (typeof v === "string") setSelectedVideoIn(v);
+        }
+        if (!ao[0]) return;
+        // No permission gate for output devices on most browsers, but the
+        // default speaker isn't always at index 0 — pick the one flagged
+        // "default" if present.
+        const def =
+          ao.find((d) => d.deviceId === "default") ?? ao[0];
+        setSelectedAudioOut((prev) => prev || def.deviceId);
+      } catch {
+        // enumerateDevices can throw on insecure contexts; non-fatal.
+      }
+    }
+    void refresh();
+    const handler = () => void refresh();
+    navigator.mediaDevices.addEventListener?.("devicechange", handler);
+    return () => {
+      cancelled = true;
+      navigator.mediaDevices.removeEventListener?.("devicechange", handler);
+    };
+  }, [mercorStyle, permissions.audio, permissions.video]);
+
   const startInterview = useCallback(async (): Promise<void> => {
     setPhase("thinking");
     if (permissions.video) startFrameCapture();
@@ -865,17 +948,21 @@ export function VideoInterviewStep({
 
   return (
     <div data-test-id="video-interview-step">
-      <div className="flex items-center gap-2">
-        <h3 className="text-[20px] font-semibold tracking-tight">Creator Interview</h3>
-        <ClaudeMark model="haiku" size="sm" />
-      </div>
-      <p className="mt-2 max-w-[640px] text-[13px] leading-[1.6] text-[var(--fg-muted)]">
-        Live video interview, ~6 minutes. The AI interviewer will speak each question. Reply
-        out loud, the transcript will appear below. We&apos;re evaluating for{" "}
-        <span className="font-medium text-[var(--fg)]">{campaignTitle}</span>.
-      </p>
+      {!mercorStyle ? (
+        <>
+          <div className="flex items-center gap-2">
+            <h3 className="text-[20px] font-semibold tracking-tight">Creator Interview</h3>
+            <ClaudeMark model="haiku" size="sm" />
+          </div>
+          <p className="mt-2 max-w-[640px] text-[13px] leading-[1.6] text-[var(--fg-muted)]">
+            Live video interview, ~6 minutes. The AI interviewer will speak each question. Reply
+            out loud, the transcript will appear below. We&apos;re evaluating for{" "}
+            <span className="font-medium text-[var(--fg)]">{campaignTitle}</span>.
+          </p>
+        </>
+      ) : null}
 
-      {phase === "idle" || phase === "requesting" ? (
+      {!mercorStyle && (phase === "idle" || phase === "requesting") ? (
         <div className="mt-6 rounded-md border border-[var(--border)] bg-[var(--bg-card)] p-5">
           <div className="text-[14px] font-medium">Before we start</div>
           <ul className="mt-3 space-y-1.5 text-[13px] text-[var(--fg-muted)]">
@@ -937,7 +1024,7 @@ export function VideoInterviewStep({
         </div>
       ) : null}
 
-      {phase === "ready" ? (
+      {!mercorStyle && phase === "ready" ? (
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <CameraTile
             videoRef={videoRef}
@@ -965,6 +1052,31 @@ export function VideoInterviewStep({
             ) : null}
           </div>
         </div>
+      ) : null}
+
+      {mercorStyle && (phase === "idle" || phase === "requesting" || phase === "ready") ? (
+        <MercorPreflight
+          campaignTitle={campaignTitle}
+          videoRef={videoRef}
+          permissions={permissions}
+          phase={phase}
+          consentGiven={consentGiven}
+          onConsentChange={setConsentGiven}
+          onGrant={() => void requestPermissions()}
+          onStart={() => void startInterview()}
+          onFallbackToText={onFallbackToText}
+          sttSupported={sttSupported}
+          description={preflightDescription}
+          audioInputs={audioInputs}
+          audioOutputs={audioOutputs}
+          videoInputs={videoInputs}
+          selectedAudioIn={selectedAudioIn}
+          selectedAudioOut={selectedAudioOut}
+          selectedVideoIn={selectedVideoIn}
+          onSelectAudioIn={setSelectedAudioIn}
+          onSelectAudioOut={setSelectedAudioOut}
+          onSelectVideoIn={setSelectedVideoIn}
+        />
       ) : null}
 
       {(phase === "interviewing" || phase === "thinking" || phase === "finished") ? (
@@ -1239,4 +1351,398 @@ function Transcript({ messages }: { messages: InterviewMessage[] }): React.JSX.E
       </ol>
     </details>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Mercor-style pre-flight (used by /interview/[id])
+// ---------------------------------------------------------------------------
+//
+// Mirrors work.mercor.com/interview/<id>: two-column layout, big live camera
+// preview + 3 device dropdowns + helper links on the left, info column with
+// dotted-underline tooltipped facts + a single big purple Start CTA on the
+// right. Hover on any underlined token shows the tooltip in a small dark
+// popover positioned below the trigger.
+
+interface MercorPreflightProps {
+  campaignTitle: string;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  permissions: Permissions;
+  phase: Phase;
+  consentGiven: boolean;
+  onConsentChange: (v: boolean) => void;
+  onGrant: () => void;
+  onStart: () => void;
+  onFallbackToText: () => void;
+  sttSupported: boolean;
+  description?: string;
+  audioInputs: MediaDeviceInfo[];
+  audioOutputs: MediaDeviceInfo[];
+  videoInputs: MediaDeviceInfo[];
+  selectedAudioIn: string;
+  selectedAudioOut: string;
+  selectedVideoIn: string;
+  onSelectAudioIn: (id: string) => void;
+  onSelectAudioOut: (id: string) => void;
+  onSelectVideoIn: (id: string) => void;
+}
+
+function MercorPreflight(props: MercorPreflightProps): React.JSX.Element {
+  const {
+    campaignTitle,
+    videoRef,
+    permissions,
+    phase,
+    consentGiven,
+    onConsentChange,
+    onGrant,
+    onStart,
+    onFallbackToText,
+    sttSupported,
+    description,
+    audioInputs,
+    audioOutputs,
+    videoInputs,
+    selectedAudioIn,
+    selectedAudioOut,
+    selectedVideoIn,
+    onSelectAudioIn,
+    onSelectAudioOut,
+    onSelectVideoIn,
+  } = props;
+
+  const isReady = phase === "ready";
+  const isRequesting = phase === "requesting";
+  const ctaLabel = isReady
+    ? "Start"
+    : isRequesting
+    ? "Requesting…"
+    : "Enable camera & mic";
+  const ctaDisabled = isRequesting || (!isReady && !consentGiven);
+
+  function handleCta() {
+    if (isReady) onStart();
+    else if (consentGiven) onGrant();
+  }
+
+  return (
+    <div className="mx-auto mt-10 grid w-full max-w-[1100px] grid-cols-1 gap-12 px-6 pb-16 lg:grid-cols-[1.4fr_1fr]">
+      {/* ─── Left column ──────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-3">
+          <h1 className="text-[28px] font-semibold tracking-tight text-[var(--fg)]">
+            {campaignTitle}
+          </h1>
+          <span className="rounded-full border border-[var(--border)] bg-[var(--bg-elev)] px-2.5 py-0.5 text-[12px] font-medium text-[var(--fg)]">
+            ~6 min
+          </span>
+        </div>
+
+        {/* Camera preview tile */}
+        <div className="mt-5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-black">
+          <div className="relative aspect-[16/10] w-full">
+            {permissions.video ? (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="h-full w-full object-cover"
+                style={{ transform: "scaleX(-1)" }}
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-white/70">
+                <Camera size={28} />
+                <div className="text-[13px]">
+                  {isRequesting ? "Requesting camera & mic…" : "Camera off"}
+                </div>
+                {phase === "idle" ? (
+                  <button
+                    type="button"
+                    onClick={onGrant}
+                    disabled={!consentGiven}
+                    className="rounded-md bg-white px-3 py-1.5 text-[12px] font-medium text-black hover:bg-white/90 disabled:opacity-40"
+                    data-test-id="video-interview-grant"
+                  >
+                    Enable camera &amp; mic
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Device pickers */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <DevicePicker
+            icon={<Mic size={14} />}
+            value={selectedAudioIn}
+            options={audioInputs}
+            onChange={onSelectAudioIn}
+            placeholder="Microphone"
+          />
+          <DevicePicker
+            icon={<Volume2 size={14} />}
+            value={selectedAudioOut}
+            options={audioOutputs}
+            onChange={onSelectAudioOut}
+            placeholder="Speaker"
+          />
+          <DevicePicker
+            icon={<Camera size={14} />}
+            value={selectedVideoIn}
+            options={videoInputs}
+            onChange={onSelectVideoIn}
+            placeholder="Camera"
+          />
+        </div>
+
+        {/* Helper links */}
+        <div className="mt-3 flex flex-wrap gap-5 text-[12.5px]">
+          <button
+            type="button"
+            className="text-[var(--fg-muted)] underline decoration-[var(--border-strong)] underline-offset-4 hover:text-[var(--fg)]"
+            onClick={() => testMic(permissions.audio)}
+          >
+            Test your mic
+          </button>
+          <button
+            type="button"
+            className="text-[var(--fg-muted)] underline decoration-[var(--border-strong)] underline-offset-4 hover:text-[var(--fg)]"
+            onClick={playTestSound}
+          >
+            Play test sound
+          </button>
+          <button
+            type="button"
+            className="text-[var(--fg-muted)] underline decoration-[var(--border-strong)] underline-offset-4 hover:text-[var(--fg)]"
+            onClick={onGrant}
+          >
+            Restart devices
+          </button>
+        </div>
+
+        {/* Troubleshooting button */}
+        <a
+          href="mailto:loganmann@ucsb.edu?subject=Mercor%20interview%20%E2%80%94%20troubleshooting"
+          className="mt-4 block w-full rounded-md border border-[var(--border)] px-3 py-2.5 text-center text-[13px] text-[var(--fg)] hover:bg-[var(--bg-hover)]"
+        >
+          Troubleshooting help
+        </a>
+      </div>
+
+      {/* ─── Right column ─────────────────────────────────────────── */}
+      <div className="flex flex-col">
+        <div className="flex items-start gap-2">
+          <Info size={16} className="mt-0.5 text-[var(--fg)]" />
+          <div>
+            <div className="text-[15px] font-semibold tracking-tight text-[var(--fg)]">
+              This is an AI interview
+            </div>
+            <p className="mt-2 text-[13px] leading-[1.55] text-[var(--fg-muted)]">
+              {description ??
+                "This AI interview explores how you think about content, audience, and brand fit."}{" "}
+              <span className="font-medium text-[var(--fg)]">
+                Come ready to have your camera on and to share specifics — real posts,
+                real numbers, real brands.
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <ul className="mt-6 space-y-4 text-[13.5px] text-[var(--fg)]">
+          <li className="flex items-center gap-3">
+            <Clock size={15} className="text-[var(--fg-muted)]" />
+            <span>
+              Expect to spend{" "}
+              <Tip text="Plan to be in a quiet room with stable internet. Very short interviews may not be considered complete — answer thoughtfully.">
+                ~6 minutes
+              </Tip>
+            </span>
+          </li>
+          <li className="flex items-center gap-3">
+            <Hand size={15} className="text-[var(--fg-muted)]" />
+            <span>
+              Need assistance?{" "}
+              <Tip text="At any point, say 'I need help' out loud or click Troubleshooting help. The AI will pause and offer to reschedule.">
+                Just ask
+              </Tip>
+            </span>
+          </li>
+          <li className="flex items-center gap-3">
+            <RefreshCcw size={15} className="text-[var(--fg-muted)]" />
+            <span>
+              3 of 3 interview{" "}
+              <Tip text="You can retake this interview up to 3 times. Reserve retakes for technical issues — repeated retakes are flagged for review.">
+                retakes remaining
+              </Tip>
+            </span>
+          </li>
+          <li className="flex items-center gap-3">
+            <Lock size={15} className="text-[var(--fg-muted)]" />
+            <span>
+              Your data is in{" "}
+              <Tip text="Frames are sent to Google Gemini for confidence scoring and are not stored on Mercor's servers. The transcript is shown to the hiring team only.">
+                your control
+              </Tip>
+            </span>
+          </li>
+          <li className="flex items-center gap-3">
+            <CalendarDays size={15} className="text-[var(--fg-muted)]" />
+            <span>
+              Interview on your{" "}
+              <Tip text="No scheduled slot — start whenever you're ready. The interview pauses if you close the tab and resumes on the next visit.">
+                own time
+              </Tip>
+            </span>
+          </li>
+        </ul>
+
+        {/* Consent gate (only visible until granted) */}
+        {!permissions.video && !permissions.audio ? (
+          <label className="mt-6 flex items-start gap-2 text-[12px] text-[var(--fg-muted)]">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={consentGiven}
+              onChange={(e) => onConsentChange(e.target.checked)}
+              data-test-id="video-interview-consent"
+            />
+            <span>
+              I consent to AI-assisted video interview processing. Frames are sent to
+              Gemini for confidence scoring and are not stored.
+            </span>
+          </label>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={handleCta}
+          disabled={ctaDisabled}
+          className="btn-primary mt-6 w-full py-3 text-[15px] disabled:opacity-50"
+          data-test-id="video-interview-start"
+        >
+          {ctaLabel}
+        </button>
+
+        {!sttSupported ? (
+          <p className="mt-3 text-[12px] text-[var(--warning)]">
+            Heads up: voice recognition isn&apos;t supported in this browser. You&apos;ll
+            still hear the questions, but you&apos;ll type your answers.
+          </p>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onFallbackToText}
+          className="mt-3 text-[12px] text-[var(--fg-muted)] underline decoration-[var(--border-strong)] underline-offset-4 hover:text-[var(--fg)]"
+        >
+          Prefer to type instead?
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Tooltip that mirrors Mercor's dotted underline + dark popover. Hover or
+// keyboard-focus the trigger to reveal the popover. We position absolutely
+// so the popover doesn't reflow surrounding text.
+function Tip({
+  text,
+  children,
+}: {
+  text: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <span className="relative inline-block group focus-within:z-20">
+      <span
+        tabIndex={0}
+        className="cursor-help underline decoration-dotted decoration-[var(--fg-muted)] underline-offset-[3px] outline-none"
+      >
+        {children}
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-[220px] -translate-x-1/2 rounded-md bg-[#1f2937] px-3 py-2 text-[12px] leading-[1.45] text-white opacity-0 shadow-lg transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function DevicePicker({
+  icon,
+  value,
+  options,
+  onChange,
+  placeholder,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  options: MediaDeviceInfo[];
+  onChange: (id: string) => void;
+  placeholder: string;
+}): React.JSX.Element {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-muted)]">
+        {icon}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full appearance-none rounded-md border border-[var(--border)] bg-white pl-9 pr-8 py-2 text-[13px] text-[var(--fg)] outline-none hover:border-[var(--border-strong)] focus:border-[var(--accent)]"
+      >
+        {options.length === 0 ? (
+          <option value="">{placeholder}</option>
+        ) : (
+          options.map((d) => (
+            <option key={d.deviceId} value={d.deviceId}>
+              {d.label || placeholder}
+            </option>
+          ))
+        )}
+      </select>
+      <ChevronDown
+        size={14}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--fg-muted)]"
+      />
+    </div>
+  );
+}
+
+// Quick "Test your mic" — flashes a 600ms tone using the WebAudio API.
+// We don't actually probe the input level for the demo; the audible click
+// confirms output works which is the more common failure mode.
+function testMic(audioGranted: boolean): void {
+  if (!audioGranted) {
+    // Without mic permission, just play the test tone so the user has SOME
+    // feedback that the click registered.
+    playTestSound();
+    return;
+  }
+  playTestSound();
+}
+
+function playTestSound(): void {
+  try {
+    const Ctor =
+      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
+        .AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    const ctx = new Ctor();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 660;
+    osc.type = "sine";
+    gain.gain.value = 0.08;
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+    osc.onended = () => void ctx.close();
+  } catch {
+    // ignore — no-op on browsers without WebAudio
+  }
 }

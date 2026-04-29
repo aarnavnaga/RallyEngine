@@ -18,12 +18,18 @@ export function AppShellLite({ children }: { children: React.ReactNode }) {
         </Link>
         <div aria-hidden="true" />
         <div className="flex items-center gap-3">
-          <button className="text-[13px] text-[var(--fg-muted)] hover:text-[var(--fg)]">
+          <a
+            href="mailto:loganmann@ucsb.edu?subject=Mercor%20demo%20%E2%80%94%20FAQ"
+            className="text-[13px] text-[var(--fg-muted)] hover:text-[var(--fg)]"
+          >
             FAQ
-          </button>
-          <button className="rounded-md border border-[var(--border)] px-3 py-1 text-[13px] hover:bg-[var(--bg-hover)]">
+          </a>
+          <a
+            href="mailto:loganmann@ucsb.edu?subject=Mercor%20demo%20%E2%80%94%20support&body=Hi%20Logan%2C%0A%0A"
+            className="rounded-md border border-[var(--border)] px-3 py-1 text-[13px] hover:bg-[var(--bg-hover)]"
+          >
             Contact support
-          </button>
+          </a>
           <UserChip />
         </div>
       </header>

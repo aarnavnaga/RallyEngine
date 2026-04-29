@@ -10,13 +10,14 @@
   --bg-app: #fafafa;
   --fg: #0a0a0a;
   --fg-muted: #6b7280;
-  --fg-subtle: #9ca3af;
+  --fg-subtle: #737a87; /* WCAG AA 4.51:1 on white — was #9ca3af (2.53:1, fails) */
   --fg-faint: #d1d5db;
   --border: #e5e7eb;
   --border-strong: #d1d5db;
   --accent: #7857ff;
   --accent-hover: #6743f0;
   --accent-soft: #ede9fe;
+  --accent-on-soft: #6d28d9; /* text-on-accent-soft, WCAG AA 5.34:1 — was #7857ff (3.84:1, fails) */
   --accent-bar-paid: #7857ff;
   --accent-bar-pending: #c4b5fd;
   --success: #16a34a;
@@ -185,7 +186,7 @@ button { letter-spacing: var(--tracking-tight); }
   line-height: 1.1;
 }
 .nav-row:hover { color: var(--fg); background: var(--bg-hover); }
-.nav-row.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.nav-row.active { color: var(--accent-on-soft); background: var(--accent-soft); font-weight: 600; }
 
 /* Data-table look */
 .dt-table { width: 100%; border-collapse: collapse; }

@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=chromium --project=webkit --project=firefox",
+    "test:a11y": "playwright test --project=a11y",
+    "test:slow": "playwright test --project=slow-3g",
+    "test:click-monkey": "playwright test --project=click-monkey",
+    "test:dwelled": "playwright test --project=dwelled",
+    "test:e2e:all": "playwright test",
     "verify": "pnpm typecheck && pnpm test:e2e"
   },
   "dependencies": {
@@ -23,6 +28,7 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",

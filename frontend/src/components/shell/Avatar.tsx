@@ -29,7 +29,10 @@ export function Avatar({ name, id, src, size = 32, color, className }: Props) {
     .join("")
     .toUpperCase();
   const seed = hashStr(name);
-  const palette = ["#7857ff", "#16a34a", "#f59e0b", "#ec4899", "#0ea5e9", "#8b5cf6", "#ef4444", "#06b6d4"];
+  // WCAG AA contrast on white text (≥4.5:1). Was using -500 weights which
+  // failed contrast (e.g. #8b5cf6 violet-500 only hit 4.23). Bumped to -700
+  // weights so initials stay legible and accessible.
+  const palette = ["#7857ff", "#15803d", "#b45309", "#be185d", "#0369a1", "#6d28d9", "#b91c1c", "#0e7490"];
   const bg = color ?? palette[seed % palette.length];
 
   if (resolvedTikTokUrl && !imgFailed) {

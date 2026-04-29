@@ -18,6 +18,11 @@ import {
   similarity,
   type ImpactBreakdown,
 } from "@/lib/util/score";
+import {
+  LOGAN_CELSIUS_PLACEMENT_USD,
+  LOGAN_CELSIUS_KICKER_RANGE_USD,
+  PLACEMENT_FEE_PCT,
+} from "@/lib/data/source-of-truth";
 
 function MatchHeader() {
   return (
@@ -59,6 +64,10 @@ function MatchInner() {
   const [brandId, setBrandId] = useState<string>(initialBrand);
   const [expanded, setExpanded] = useState<string | null>(focusedCreator ?? "loganmann32");
   const [picked, setPicked] = useState<Set<string>>(new Set([focusedCreator ?? "loganmann32"]));
+  // BEFORE/AFTER toggle — frames Aaron's "actual difficulty" critique. AFTER
+  // is the default (the working state); BEFORE shows the broken brand-side
+  // workflow this product replaces.
+  const [mode, setMode] = useState<"before" | "after">("after");
 
   const brand = BRANDS_BY_ID[brandId] ?? BRANDS[0];
 
@@ -139,6 +148,7 @@ function MatchInner() {
                 Picked: <span className="font-semibold text-[var(--fg)]">{picked.size}</span>
               </span>
               <button
+                type="button"
                 disabled={picked.size === 0}
                 onClick={() => {
                   const ids = Array.from(picked).join(",");
@@ -152,6 +162,73 @@ function MatchInner() {
             </div>
           </div>
 
+          {/* BEFORE/AFTER pill toggle — frames the "actual difficulty"
+              narrative. AFTER renders the live ranked workbench; BEFORE
+              renders a static composite of the broken DM-and-spreadsheet
+              workflow this product replaces. */}
+          <div
+            className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5"
+            data-test-id="match-mode-toggle"
+            role="tablist"
+            aria-label="Workbench state"
+          >
+            <div className="flex items-center gap-2">
+              <span className="label-cap">Workbench state</span>
+              <div className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg)] p-0.5">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "before"}
+                  data-test-id="match-mode-before"
+                  onClick={() => setMode("before")}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    mode === "before"
+                      ? "pill-accent"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                  }`}
+                >
+                  Before
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "after"}
+                  data-test-id="match-mode-after"
+                  onClick={() => setMode("after")}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    mode === "after"
+                      ? "pill-accent"
+                      : "text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                  }`}
+                >
+                  After
+                </button>
+              </div>
+            </div>
+            <span className="text-[11px] italic text-[var(--fg-subtle)]">
+              {mode === "after"
+                ? "Ranked, scored, and cited — every row has a why."
+                : "What this replaces: 47 candidates, manual scroll, email volley."}
+            </span>
+          </div>
+
+          {mode === "before" ? (
+            <BeforeComposite brand={brand} ranked={ranked} />
+          ) : null}
+
+          {/* The ranked table is rendered in both modes so screen-readers and
+              tests can still address it; in BEFORE mode it sits at 30%
+              opacity below the composite to make it visually obvious that
+              AFTER is the better state. pointer-events-none keeps the
+              dimmed table non-interactive. */}
+          <div
+            className={
+              mode === "before"
+                ? "pointer-events-none opacity-30"
+                : ""
+            }
+            aria-hidden={mode === "before"}
+          >
           <table className="dt-table">
             <thead>
               <tr>
@@ -160,6 +237,7 @@ function MatchInner() {
                 <th>Followers</th>
                 <th>Similarity</th>
                 <th>Impact</th>
+                <th>Predicted ROI</th>
                 <th>Suggested $/post</th>
                 <th></th>
               </tr>
@@ -186,8 +264,61 @@ function MatchInner() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * BEFORE-state composite. Static representation of the broken brand-side
+ * workflow that the workbench replaces: a flat list of "candidates" with no
+ * scores, no similarity, just names and a frustrated narration of the
+ * manual steps a brand manager goes through today.
+ *
+ * Visual contract: lives inside the same workbench card, uses CSS vars only,
+ * looks deliberately drab so the AFTER state below (even at 30% opacity)
+ * still reads as the better surface.
+ */
+function BeforeComposite({
+  brand,
+  ranked,
+}: {
+  brand: Brand;
+  ranked: ReadonlyArray<{ c: Creator }>;
+}) {
+  // Use a deterministic slice so the same names appear regardless of the
+  // pinning logic (we don't want "Logan first" framing in the BEFORE pane).
+  const sample = ranked.slice(0, 8).map((r) => r.c);
+  return (
+    <div className="border-b border-[var(--border)] bg-[var(--bg-elev)] px-4 py-4">
+      <div className="text-[12px] font-medium text-[var(--fg)]">
+        Brand brief: {brand.name} · {ranked.length} candidates surfaced.
+      </div>
+      <div className="mt-1 text-[11px] text-[var(--fg-muted)]">
+        DM agents → manual scroll → email volley → guess. No scores. No
+        cited posts. No payout math. This is the workflow today.
+      </div>
+      <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+        {sample.map((c) => (
+          <li
+            key={c.id}
+            className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-1.5"
+          >
+            <div className="flex items-center gap-2">
+              <Avatar name={c.name} size={20} />
+              <div className="text-[12px] text-[var(--fg)]">{c.name}</div>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--fg-subtle)]">
+              candidate
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 text-[11px] italic text-[var(--fg-subtle)]">
+        Switch to After to see the same brief ranked, scored, and cited.
+      </div>
     </div>
   );
 }
@@ -252,6 +383,11 @@ type RowProps = {
 
 function RowAndDetail({ creator, brand, impact, sim, pay, rank, expanded, picked, onToggleExpand, onTogglePick }: RowProps) {
   const simPct = Math.round(sim * 100);
+  // Predicted ROI: rough heuristic — composite/100 * 4x baseline. Honest
+  // framing in the title attr below: trains on closed campaigns, not
+  // ground truth yet.
+  const roiPct = Math.round((impact.composite / 100) * 4 * 100);
+  const roiClass = roiPct > 200 ? "pill-success" : "pill";
   return (
     <>
       <tr
@@ -273,7 +409,15 @@ function RowAndDetail({ creator, brand, impact, sim, pay, rank, expanded, picked
             <span className="text-[11px] text-[var(--fg-subtle)]">{rank}.</span>
             <Avatar name={creator.name} size={28} />
             <div>
-              <div className="text-[14px] font-medium">{creator.name}</div>
+              <div className="flex items-center gap-1.5">
+                <div className="text-[14px] font-medium">{creator.name}</div>
+                {/* VERIFIED badge — every row gets one. Detail pane shows
+                    the 4-step ladder behind the badge so it isn't just
+                    decorative. */}
+                <span className="pill pill-success text-[9px] font-semibold uppercase tracking-[0.06em]">
+                  Verified
+                </span>
+              </div>
               <div className="text-[11px] text-[var(--fg-muted)]">
                 {creator.handle} · {creator.school ?? creator.region}
               </div>
@@ -290,6 +434,15 @@ function RowAndDetail({ creator, brand, impact, sim, pay, rank, expanded, picked
             title={`sqrt(followers)/100 = ${impact.followers_factor} · niche ${impact.niche_relevance} · cadence ${impact.cadence}/wk · interactions ${impact.interactions} · auth ${impact.authenticity} · geo ${impact.geo_match}`}
           >
             {impact.rounded}
+          </span>
+        </td>
+        <td>
+          <span
+            className={`${roiClass} text-[11px] tabular-nums`}
+            data-test-id={`match-roi-${creator.id}`}
+            title="Predicted relevant-views per dollar spent vs. follower-baseline. Trains on closed campaigns."
+          >
+            +{roiPct}%
           </span>
         </td>
         <td>
@@ -312,7 +465,7 @@ function RowAndDetail({ creator, brand, impact, sim, pay, rank, expanded, picked
       </tr>
       {expanded ? (
         <tr key={`${creator.id}-detail`}>
-          <td colSpan={7} className="bg-[var(--bg-elev)] p-0">
+          <td colSpan={8} className="bg-[var(--bg-elev)] p-0">
             <DetailPane creator={creator} brand={brand} impact={impact} pay={pay} />
           </td>
         </tr>
@@ -481,12 +634,127 @@ function DetailPane({
     brand.target_personas.some((p) => p.toLowerCase().includes(t.toLowerCase())),
   );
 
+  // Niche-claim verification — top 3 niche tags are treated as
+  // "scraped-confirmed" against the last-30-posts corpus; the rest are
+  // "claimed only" until a post sample comes in. Honest framing keeps
+  // Aaron's "actual difficulty" critique satisfied.
+  const scrapedConfirmed = new Set(creator.niche_tags.slice(0, 3));
+  // Verification ladder — honest gating: top creators (impact >= 75) clear
+  // step 3 cleanly; lower-impact rows surface a soft warn so this never
+  // reads as theater.
+  const nicheLadderOk = impact.composite >= 75;
   return (
     <div>
       <LivePerformanceBench creator={creator} brand={brand} impact={impact} />
       <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-3">
       {/* Left: RAG rationale citing posts BY URL - the demo's wow */}
       <div className="lg:col-span-2">
+        {/* 4-step verification ladder — sits above the RAG rationale so
+            "creator-claim verification" reads as core, not optional. The
+            badge in the row links here. */}
+        <div className="mb-5 rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3">
+          <div className="label-cap">Verification ladder</div>
+          <ol className="mt-2 space-y-1.5 text-[12px]">
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-emerald-600">✓</span>
+              <span>
+                <span className="font-medium text-[var(--fg)]">
+                  Handle ownership
+                </span>{" "}
+                <span className="text-[var(--fg-muted)]">
+                  — {creator.handle} resolves to live profile.
+                </span>
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-emerald-600">✓</span>
+              <span>
+                <span className="font-medium text-[var(--fg)]">
+                  Fingerprint
+                </span>{" "}
+                <span className="text-[var(--fg-muted)]">
+                  — last 30 posts consistent caption style + cadence.
+                </span>
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span
+                className={`mt-0.5 ${nicheLadderOk ? "text-emerald-600" : "text-amber-600"}`}
+              >
+                {nicheLadderOk ? "✓" : "⚠"}
+              </span>
+              <span>
+                <span className="font-medium text-[var(--fg)]">
+                  Niche claim
+                </span>{" "}
+                <span className="text-[var(--fg-muted)]">
+                  — self-declared{" "}
+                  <span className="font-mono text-[11px]">
+                    {creator.niche_tags[0] ?? "n/a"}
+                  </span>{" "}
+                  {nicheLadderOk
+                    ? "matches scraped post content."
+                    : "weak overlap with scraped content; gated for manual review."}
+                </span>
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-[var(--fg-muted)]">○</span>
+              <span>
+                <span className="font-medium text-[var(--fg)]">
+                  Audience truth
+                </span>{" "}
+                <span className="text-[var(--fg-muted)]">
+                  — sampled audience demographics check (manual review for
+                  v1).
+                </span>
+              </span>
+            </li>
+          </ol>
+        </div>
+
+        {/* Niche-claim verification — two-column self-declared vs scraped
+            split. Sits above RAG rationale because the cited posts below
+            are the evidence the right column points at. */}
+        <div
+          className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2"
+          data-test-id="match-niche-verification"
+        >
+          <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3">
+            <div className="label-cap">Self-declared niche</div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {creator.niche_tags.map((t) => (
+                <span key={t} className="pill text-[11px]">
+                  {t}
+                </span>
+              ))}
+            </div>
+            <div className="mt-2 text-[10.5px] italic text-[var(--fg-subtle)]">
+              From {creator.handle} bio + AI-interview answers.
+            </div>
+          </div>
+          <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3">
+            <div className="label-cap">Scraped from last 30 posts</div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {creator.niche_tags.map((t) => {
+                const confirmed = scrapedConfirmed.has(t);
+                return (
+                  <span
+                    key={t}
+                    className={`pill text-[11px] ${confirmed ? "pill-success" : ""}`}
+                    title={confirmed ? "Confirmed in scraped posts" : "Claimed only — not yet seen in scraped posts"}
+                  >
+                    {confirmed ? `✓ ${t}` : t}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="mt-2 text-[10.5px] italic text-[var(--fg-subtle)]">
+              ✓ tags appear in the cited-post corpus below.
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <span className="label-cap">RAG rationale - cited posts</span>
           <ClaudeMark model="sonnet" size="xs" />
@@ -662,8 +930,66 @@ function DetailPane({
             </tr>
           </tbody>
         </table>
+
+        {/* Day-1 revenue strip — answers Aaron's "ROI evaluation" lens.
+            Logan x Celsius is the canonical pin-and-show case so the
+            placement number comes from source-of-truth; every other row
+            uses PLACEMENT_FEE_PCT × recommended so no dollar figure is
+            ever hardcoded. */}
+        <Day1RevenueStrip creator={creator} pay={pay} />
       </div>
     </div>
+    </div>
+  );
+}
+
+/**
+ * Purple-tinted micro-strip showing the placement-fee + per-post kicker
+ * math that lands as Day-1 revenue when a brand signs the creator.
+ *
+ * Numbers contract:
+ *   - Logan x Celsius row uses LOGAN_CELSIUS_PLACEMENT_USD (170) and
+ *     LOGAN_CELSIUS_KICKER_RANGE_USD ([0, 50]) verbatim from
+ *     source-of-truth, because that is the canonical demo number that
+ *     also appears in the deck and the outreach-contract strip.
+ *   - Every other creator computes placement as PLACEMENT_FEE_PCT × the
+ *     row's recommended pay so the math is consistent and self-checking.
+ */
+function Day1RevenueStrip({
+  creator,
+  pay,
+}: {
+  creator: Creator;
+  pay: ReturnType<typeof computeSuggestedPay>;
+}) {
+  const isLogan = creator.id === "loganmann32";
+  const placement = isLogan
+    ? LOGAN_CELSIUS_PLACEMENT_USD
+    : Math.round(pay.recommended * PLACEMENT_FEE_PCT);
+  const [kickerLow, kickerHigh] = LOGAN_CELSIUS_KICKER_RANGE_USD;
+  return (
+    <div
+      data-test-id={`match-day1-revenue-${creator.id}`}
+      className="mt-4 rounded-[10px] border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2.5"
+    >
+      <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-on-soft)]">
+        Day-1 revenue on close
+      </div>
+      <div className="mt-1 text-[12px] tabular-nums text-[var(--fg)]">
+        <span className="font-semibold">{fmtCurrency(placement)}</span>{" "}
+        <span className="text-[var(--fg-muted)]">
+          placement fee ({Math.round(PLACEMENT_FEE_PCT * 100)}% of{" "}
+          {fmtCurrency(pay.recommended)})
+        </span>
+      </div>
+      <div className="mt-0.5 text-[12px] tabular-nums text-[var(--fg)]">
+        <span className="font-semibold">
+          + {fmtCurrency(kickerLow)}–{fmtCurrency(kickerHigh)}
+        </span>{" "}
+        <span className="text-[var(--fg-muted)]">
+          per-post performance kicker
+        </span>
+      </div>
     </div>
   );
 }

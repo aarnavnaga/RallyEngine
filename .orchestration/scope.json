@@ -1,0 +1,49 @@
+{
+  "version": "1",
+  "plan": "docs/pitch/aaron-iteration-plan-v3.md",
+  "spec": "docs/specs/source-of-truth.md",
+  "shared_read_only": [
+    "docs/specs/source-of-truth.md",
+    "frontend/src/lib/data/source-of-truth.ts"
+  ],
+  "workers": {
+    "w1-deck": {
+      "owns": [
+        "scripts/build_aaron_deck.py",
+        "docs/pitch/Mercor-Creators-Domain.pptx",
+        "docs/pitch/Mercor-Creators-Domain.pdf"
+      ]
+    },
+    "w2-match": {
+      "owns": ["frontend/src/app/admin/match/**"]
+    },
+    "w3-rlstudio": {
+      "owns": [
+        "frontend/src/app/admin/interviews/**",
+        "frontend/src/components/admin/rlstudio/**"
+      ]
+    },
+    "w4-overview": {
+      "owns": ["frontend/src/app/admin/page.tsx"]
+    },
+    "w5-verification": {
+      "owns": [
+        "frontend/src/app/admin/verification/**",
+        "frontend/src/components/shell/Sidebar.tsx"
+      ]
+    },
+    "w6-outreach": {
+      "owns": ["frontend/src/app/admin/outreach/**"]
+    },
+    "w7-script": {
+      "owns": [
+        "docs/pitch/aaron-call-final.md",
+        "docs/pitch/README.md",
+        "README.md"
+      ]
+    },
+    "w8-growth": {
+      "owns": ["docs/pitch/mercor-growth-team-prep.md"]
+    }
+  }
+}

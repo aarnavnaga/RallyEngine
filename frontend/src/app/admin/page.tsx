@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { TooltipProps } from "recharts";
 import { CREATORS } from "@/lib/data/creators";
+import { ADMIN_OVERVIEW_PIPELINE, ADMIN_OVERVIEW_TILES } from "@/lib/data/source-of-truth";
 import { fmtCurrency } from "@/lib/util/score";
 
 const WEEKS = ["Feb 23", "Mar 2", "Mar 9", "Mar 16", "Mar 23", "Mar 30", "Apr 6", "Apr 13", "Apr 20", "Apr 27"];
@@ -188,6 +189,19 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
+/**
+ * Allowlist `href` values to prevent `javascript:` / `data:` URL
+ * injection from localStorage tampering. Action items only ever link
+ * to internal admin routes or absolute https URLs; anything else
+ * collapses to a safe fallback.
+ */
+function sanitizeHref(raw: unknown): string {
+  if (typeof raw !== "string") return "/admin";
+  if (raw.startsWith("/")) return raw;
+  if (/^https:\/\//i.test(raw)) return raw;
+  return "/admin";
+}
+
 function sanitizeActionItem(v: unknown): ActionItem | null {
   if (!isRecord(v)) return null;
   if (typeof v.id !== "string" || typeof v.text !== "string") return null;
@@ -205,7 +219,7 @@ function sanitizeActionItem(v: unknown): ActionItem | null {
     priority: v.priority as ActionItem["priority"],
     kpiTargets,
     kpiTagLabel: typeof v.kpiTagLabel === "string" ? v.kpiTagLabel : "",
-    href: typeof v.href === "string" ? v.href : "/admin",
+    href: sanitizeHref(v.href),
     cta: typeof v.cta === "string" ? v.cta : "Open →",
     custom: true,
   };
@@ -235,7 +249,11 @@ function saveState(s: StoredState) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  } catch {}
+  } catch {
+    // Storage may be disabled (private mode) or quota-exhausted. Demo
+    // tolerates dropped state across reloads — losing today's checked
+    // action items is preferable to crashing the dashboard.
+  }
 }
 
 function Sparkline({ data, color }: { data: number[]; color: string }) {
@@ -549,7 +567,23 @@ export default function AdminOverviewPage() {
         <h1 className="h-display text-[28px]">Overview</h1>
       </div>
 
-      <section className="mt-8 grid gap-4 md:grid-cols-4" data-test-id="admin-kpi-grid">
+      <section
+        className="mt-5 grid gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-4 md:grid-cols-3"
+        data-test-id="admin-flywheel-strip"
+        aria-label="Data flywheel"
+      >
+        {ADMIN_OVERVIEW_TILES.map((tile) => (
+          <div key={tile.title} className="flex flex-col gap-0.5">
+            <div className="text-[10px] uppercase tracking-wide text-[var(--fg-subtle)]">{tile.title}</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[20px] font-semibold tabular-nums tracking-tight text-[var(--fg)]">{tile.value}</span>
+              <span className="text-[11px] text-[var(--fg-muted)]">{tile.subtitle}</span>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section className="mt-6 grid gap-4 md:grid-cols-4" data-test-id="admin-kpi-grid">
         {kpiCards.map((k) => (
           <KPICard
             key={k.id}
@@ -668,6 +702,29 @@ export default function AdminOverviewPage() {
             );
           })}
         </ul>
+      </section>
+
+      <section
+        className="mt-10 rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-4"
+        data-test-id="admin-pipeline-footer"
+        aria-label="Creator Experts pipeline"
+      >
+        <div className="text-[10px] uppercase tracking-wide text-[var(--fg-subtle)]">Creator Experts pipeline</div>
+        <ol className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-[var(--fg)]">
+          {ADMIN_OVERVIEW_PIPELINE.map((node, i) => (
+            <li key={node} className="flex items-center gap-2">
+              <span className="rounded-full border border-[var(--border)] bg-[var(--accent-soft)] px-2.5 py-0.5 font-medium text-[var(--accent-on-soft)]">
+                {node}
+              </span>
+              {i < ADMIN_OVERVIEW_PIPELINE.length - 1 ? (
+                <span aria-hidden="true" className="text-[var(--fg-subtle)]">→</span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+        <div className="mt-2 text-[11px] text-[var(--fg-muted)]">
+          Every campaign that closes adds a brand-side outcome row. The model gets compoundingly better at predicting which creator/content combos drive ROI.
+        </div>
       </section>
     </div>
   );

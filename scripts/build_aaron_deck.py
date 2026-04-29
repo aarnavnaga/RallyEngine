@@ -1,4 +1,4 @@
-"""Creator Experts — internal proposal deck for Aaron Langerman (Mercor).
+"""Creator Experts — internal proposal deck for Aaron Langerman (Mercor) — v3.
 
 Framed as an internal proposal from two current Mercor contractors (Logan +
 Aarnav, both on the CUA-envs contract for Anthropic under Drew Geoly).
@@ -10,7 +10,15 @@ Mercor design tokens mirror work.mercor.com 1:1:
   - accent #7857ff (Mercor purple), accent-soft #ede9fe
   - typography: Inter
 
-Structure: 5 slides. Cover → Why now → Proof → Plan + asks → Demo handoff.
+v3 structure (8 slides) — addresses Aaron's verbatim feedback:
+  1. Cover                          — "A high-friction labor market. Where AI compounds."
+  2. THE BROKEN WORKFLOW            — 5-step horizontal flow + bottleneck stats
+  3. WHY NOW                        — three numbered drivers
+  4. SIGNAL                         — comparison ledger + THE MOAT row + 68% Lumanu
+  5. VERIFICATION                   — 4-step ladder, steps 3+4 honest "manual review"
+  6. DAY-1 REVENUE                  — $170 placement + $0-$50 perf + RL licensing
+  7. PROVE BY AUGUST                — 4 falsifiable proof points + verdict gate
+  8. NOW → LIVE DEMO                — vercel URL handoff
 
 Run: python3 scripts/build_aaron_deck.py
 Output: docs/pitch/Mercor-Creators-Domain.pptx
@@ -42,15 +50,14 @@ FONT_BODY = "Inter"
 SLIDE_W = Inches(13.333)
 SLIDE_H = Inches(7.5)
 
-PFP_DIR = Path("/tmp/mercor-pfps")
-PFP_AARON = PFP_DIR / "aaron.jpg"
-PFP_LOGAN = PFP_DIR / "logan.jpg"
-PFP_LUNA = PFP_DIR / "luna.jpg"
-PFP_JORDAN = PFP_DIR / "jordan.jpg"
-PFP_EDDIE = PFP_DIR / "eddie.jpg"
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MERCOR_LOGO = REPO_ROOT / "docs" / "pitch" / "mercor-logo.png"
+
+# Verbatim from frontend/src/lib/data/source-of-truth.ts
+DAY1_REVENUE_HEADLINE = (
+    "Logan × Celsius signed: $170 placement + $0–$50 perf kicker "
+    "+ per-task RL revenue when this becomes a Mercor world."
+)
 
 
 # ─── Primitives ─────────────────────────────────────────────────────────────
@@ -106,11 +113,6 @@ def _accent_bar(slide, *, top, height_pt=4, width_in=0.6, left_in=0.7):
     bar.line.fill.background()
 
 
-def _wordmark(slide, *, text="mercor"):
-    tf = _add_textbox(slide, left=Inches(0.7), top=Inches(0.45), width=Inches(6), height=Inches(0.3))
-    _add_paragraph(tf, text, size=11, bold=True, color=FG, font=FONT_DISPLAY, first=True)
-
-
 def _logo_corner(slide, *, size_in=0.35, right_pad=0.7, top_pad=0.35):
     """Small Mercor M logo in the top-right corner. Transparent PNG."""
     if not MERCOR_LOGO.exists():
@@ -134,7 +136,7 @@ def _footer(slide, *, page, total):
 
 
 def _micro_label(slide, *, text, top_in, left_in=0.7):
-    tf = _add_textbox(slide, left=Inches(left_in), top=Inches(top_in), width=Inches(8), height=Inches(0.3))
+    tf = _add_textbox(slide, left=Inches(left_in), top=Inches(top_in), width=Inches(11), height=Inches(0.3))
     _add_paragraph(
         tf, text.upper(),
         size=10, bold=True, color=ACCENT, font=FONT_DISPLAY, spacing=120, first=True,
@@ -149,53 +151,25 @@ def _hero(slide, *, text, top_in=1.5, size=44, color=FG, height=2.2,
     p.line_spacing = line_spacing
 
 
-def _circle_pfp(slide, *, image_path: Path | None, initials: str,
-                left_in: float, top_in: float, diameter_in: float = 0.85):
-    """Round PFP. Uses image if available, else initials in accent-soft circle."""
-    if image_path and image_path.exists():
-        # Background circle for clip-mask appearance.
-        circle = slide.shapes.add_shape(
-            MSO_SHAPE.OVAL,
-            Inches(left_in), Inches(top_in),
-            Inches(diameter_in), Inches(diameter_in),
-        )
-        circle.fill.solid()
-        circle.fill.fore_color.rgb = BORDER
-        circle.line.color.rgb = BORDER
-        circle.line.width = Pt(0.5)
-        # Embed image (square — we trade circular-clip for visual simplicity;
-        # the OVAL behind reads as a frame on most renderers).
-        slide.shapes.add_picture(
-            str(image_path),
-            Inches(left_in), Inches(top_in),
-            Inches(diameter_in), Inches(diameter_in),
-        )
-        return
-    # Fallback: accent-soft circle with initials.
-    circle = slide.shapes.add_shape(
-        MSO_SHAPE.OVAL,
-        Inches(left_in), Inches(top_in),
-        Inches(diameter_in), Inches(diameter_in),
+def _rounded_card(slide, *, left_in, top_in, width_in, height_in,
+                  fill_color=BG_ELEV, line_color=BORDER, line_pt=0.75,
+                  corner_adj=0.06):
+    box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(left_in), Inches(top_in), Inches(width_in), Inches(height_in),
     )
-    circle.fill.solid()
-    circle.fill.fore_color.rgb = ACCENT_SOFT
-    circle.line.color.rgb = ACCENT
-    circle.line.width = Pt(0.75)
-    tf = circle.text_frame
-    tf.margin_left = Emu(0)
-    tf.margin_right = Emu(0)
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-    tf.paragraphs[0].text = ""
-    p = tf.paragraphs[0]
-    p.alignment = PP_ALIGN.CENTER
-    run = p.add_run()
-    run.text = initials.upper()
-    _set_run_style(run, size=int(diameter_in * 18), bold=True, color=ACCENT, font=FONT_DISPLAY)
+    box.adjustments[0] = corner_adj
+    box.fill.solid()
+    box.fill.fore_color.rgb = fill_color
+    box.line.color.rgb = line_color
+    box.line.width = Pt(line_pt)
+    return box
 
 
 # ─── Slide builders ─────────────────────────────────────────────────────────
 
 def slide_cover(prs, total):
+    """Slide 1 — Cover. New thesis line per Aaron feedback."""
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
     _white_background(slide)
@@ -205,16 +179,16 @@ def slide_cover(prs, total):
     _hero(slide, text="Creator Experts.", top_in=2.3, size=88, height=1.5, line_spacing=1.0)
     _hero(
         slide,
-        text="A new Expert Domain for Mercor.",
-        top_in=4.0, size=24, color=FG_MUTED, height=0.6, line_spacing=1.0,
+        text="A high-friction labor market. Where AI compounds.",
+        top_in=4.0, size=24, color=FG_MUTED, height=0.7, line_spacing=1.05,
     )
     _hero(
         slide,
-        text="Build over the summer. Ship at the start of Q4.",
-        top_in=4.6, size=16, color=FG_SUBTLE, height=0.5, line_spacing=1.0,
+        text="Sourcing. Verification. Evaluation. Outcome prediction.",
+        top_in=4.75, size=14, color=FG_SUBTLE, height=0.5, line_spacing=1.0,
     )
 
-    # Byline block — minimal. Who, what role, how Aaron knows them.
+    # Byline block
     tf = _add_textbox(slide, left=Inches(0.7), top=Inches(5.9), width=Inches(12), height=Inches(1.0))
     _add_paragraph(
         tf, "For Aaron Langerman, Strategic Ops.",
@@ -233,258 +207,550 @@ def slide_cover(prs, total):
     _footer(slide, page=1, total=total)
 
 
-def slide_numbers(prs, total):
-    """Attention-grab stats slide. Three numbers that frame the case."""
+def slide_broken_workflow(prs, total):
+    """Slide 2 — THE BROKEN WORKFLOW. NEW. 5-step horizontal flow + bottleneck stats."""
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
     _white_background(slide)
     _logo_corner(slide)
-    _micro_label(slide, text="Three numbers", top_in=0.95)
+    _micro_label(slide, text="The broken workflow.", top_in=0.95)
 
     _hero(
         slide,
-        text="The market is bigger than the model.",
-        top_in=1.55, size=34, height=1.1,
+        text="Five steps. Most of them manual. None of them scale.",
+        top_in=1.5, size=28, height=1.0, line_spacing=1.05,
     )
 
-    # Three stat cards horizontal
-    stats = [
-        ("$480B",  "Creator economy by 2027.",
-         "Goldman Sachs.", False),
-        ("4×",     "CTR lift on UGC vs. polished ads.",
-         "Half the CPC, too. Impact, 2026.", True),
-        ("74%",    "of brands shifting budget into creator programs.",
-         "Influencer Marketing Factory, 2026.", False),
+    # 5-step horizontal flow
+    steps = [
+        ("01", "Brand brief",   "marketing manager opens a doc"),
+        ("02", "DM agents",     "searches IG/TikTok DMs"),
+        ("03", "Manual scroll", "opens 40 profiles, evaluates by eye"),
+        ("04", "Email volley",  "3–5 round-trips per creator"),
+        ("05", "Sign or pass",  "guess at fit, sign contract, hope"),
     ]
-    card_w = 4.0
+    n = len(steps)
+    margin = 0.7
     gap = 0.15
-    start = 0.7
-    top = 3.4
-    height = 3.0
-    for i, (big, line, src, accent) in enumerate(stats):
-        left = start + i * (card_w + gap)
-        box = slide.shapes.add_shape(
-            MSO_SHAPE.ROUNDED_RECTANGLE,
-            Inches(left), Inches(top), Inches(card_w), Inches(height),
-        )
-        box.adjustments[0] = 0.05
-        box.fill.solid()
-        box.fill.fore_color.rgb = ACCENT_SOFT if accent else BG_ELEV
-        box.line.color.rgb = ACCENT if accent else BORDER
-        box.line.width = Pt(1.0 if accent else 0.75)
+    avail = 13.333 - 2 * margin
+    card_w = (avail - gap * (n - 1)) / n
+    top = 3.0
+    height = 1.85
 
+    for i, (num, head, body) in enumerate(steps):
+        left = margin + i * (card_w + gap)
+        accent = i in (2,)  # highlight the manual-scroll bottleneck
+        _rounded_card(
+            slide, left_in=left, top_in=top, width_in=card_w, height_in=height,
+            fill_color=ACCENT_SOFT if accent else BG_ELEV,
+            line_color=ACCENT if accent else BORDER,
+            line_pt=1.0 if accent else 0.75,
+        )
         tf = _add_textbox(
-            slide, left=Inches(left + 0.3), top=Inches(top + 0.4),
-            width=Inches(card_w - 0.6), height=Inches(height - 0.6),
-        )
-        big_color = ACCENT if accent else FG
-        _add_paragraph(
-            tf, big, size=44, bold=True, color=big_color,
-            font=FONT_DISPLAY, first=True, space_after=10,
+            slide, left=Inches(left + 0.22), top=Inches(top + 0.22),
+            width=Inches(card_w - 0.44), height=Inches(height - 0.4),
         )
         _add_paragraph(
-            tf, line, size=13, bold=True, color=FG, font=FONT_BODY,
-            space_after=14,
+            tf, num, size=11, bold=True,
+            color=ACCENT if accent else FG_SUBTLE,
+            font=FONT_DISPLAY, spacing=120, first=True, space_after=6,
         )
         _add_paragraph(
-            tf, src, size=10, color=FG_SUBTLE, font=FONT_BODY,
+            tf, head, size=14, bold=True, color=FG, font=FONT_DISPLAY,
+            space_after=4,
+        )
+        _add_paragraph(
+            tf, body, size=10, color=FG_MUTED, font=FONT_BODY,
         )
 
-    # Closing line
-    proof_tf = _add_textbox(slide, left=Inches(0.7), top=Inches(6.55),
-                            width=Inches(12), height=Inches(0.5))
-    _add_paragraph(
-        proof_tf,
-        "Three external signals. All pointing the same way.",
-        size=12, color=FG_MUTED, font=FONT_BODY, first=True,
-    )
+    # Stats card row
+    stats_top = 5.15
+    stats_h = 1.45
+    stats = [
+        ("70%", "of brands say finding the right creators is their biggest bottleneck.",
+         "Aspire, State of Influencer Marketing 2025."),
+        ("39%", "of brands still rely on manual research.",
+         "IMH/Sprout Q1 2025 Pulse."),
+    ]
+    sw = (avail - gap) / 2
+    for i, (big, line, src) in enumerate(stats):
+        left = margin + i * (sw + gap)
+        _rounded_card(
+            slide, left_in=left, top_in=stats_top, width_in=sw, height_in=stats_h,
+            fill_color=BG_ELEV, line_color=BORDER,
+        )
+        tf = _add_textbox(
+            slide, left=Inches(left + 0.3), top=Inches(stats_top + 0.22),
+            width=Inches(sw - 0.6), height=Inches(stats_h - 0.4),
+        )
+        _add_paragraph(
+            tf, big, size=30, bold=True, color=ACCENT,
+            font=FONT_DISPLAY, first=True, space_after=4,
+        )
+        _add_paragraph(
+            tf, line, size=12, bold=True, color=FG, font=FONT_BODY,
+            space_after=4,
+        )
+        _add_paragraph(
+            tf, src, size=9, color=FG_SUBTLE, font=FONT_BODY,
+        )
 
     _footer(slide, page=2, total=total)
 
 
-def slide_why(prs, total):
+def slide_why_now(prs, total):
+    """Slide 3 — WHY NOW. Three numbered drivers."""
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
     _white_background(slide)
     _logo_corner(slide)
-    _micro_label(slide, text="Why this. Why now.", top_in=0.95)
+    _micro_label(slide, text="Why now.", top_in=0.95)
 
-    _hero(slide, text="Three things changed in the last six months.", top_in=1.55, size=34, height=1.0)
+    _hero(
+        slide,
+        text="Three forces just shifted under the creator market.",
+        top_in=1.5, size=28, height=1.0,
+    )
 
-    timers = [
-        ("01", "Handshake AI is going for the college funnel.",
-         "18M students priced as cheap RLHF labor."),
-        ("02", "Brand-voice RLHF doesn't have a vendor.",
-         "Anthropic and OpenAI will need it inside ~6 months."),
-        ("03", "Mercor's own UGC spend is going to Meta.",
-         "Creators in the marketplace could replace that line."),
+    drivers = [
+        (
+            "01",
+            "Manual review doesn't scale when content explodes.",
+            "YouTube enforcement, Jan 2026: 16 channels removed, 35M subs, "
+            "4.7B views erased (Neal Mohan, 2026-01-12).",
+        ),
+        (
+            "02",
+            "Surface signals are getting noisier.",
+            "Only 26% of consumers prefer AI-generated creator content today, "
+            "down from 60% in 2023 (Billion Dollar Boy Muse Two, 2025-11-20).",
+        ),
+        (
+            "03",
+            "Ad costs are climbing.",
+            "Meta Q3 2025: +10% YoY price-per-ad, "
+            "\"increased advertiser demand\" (Susan Li, 2025-10-29).",
+        ),
     ]
-    top = 3.4
-    for idx, (num, head, body) in enumerate(timers):
-        y = top + idx * 1.05
-        num_tf = _add_textbox(slide, left=Inches(0.7), top=Inches(y), width=Inches(0.8), height=Inches(1))
-        _add_paragraph(num_tf, num, size=22, bold=True, color=ACCENT, font=FONT_DISPLAY, first=True)
-        body_tf = _add_textbox(slide, left=Inches(1.7), top=Inches(y), width=Inches(11), height=Inches(1))
-        _add_paragraph(body_tf, head, size=18, bold=True, color=FG, font=FONT_DISPLAY, first=True, space_after=3)
-        _add_paragraph(body_tf, body, size=12, color=FG_MUTED, font=FONT_BODY)
+    top = 3.05
+    row_h = 1.2
+    for i, (num, head, body) in enumerate(drivers):
+        y = top + i * row_h
+        num_tf = _add_textbox(slide, left=Inches(0.7), top=Inches(y),
+                              width=Inches(0.85), height=Inches(1))
+        _add_paragraph(
+            num_tf, num, size=24, bold=True, color=ACCENT,
+            font=FONT_DISPLAY, first=True,
+        )
+        body_tf = _add_textbox(slide, left=Inches(1.7), top=Inches(y),
+                               width=Inches(11), height=Inches(1.1))
+        _add_paragraph(
+            body_tf, head, size=18, bold=True, color=FG, font=FONT_DISPLAY,
+            first=True, space_after=4,
+        )
+        _add_paragraph(
+            body_tf, body, size=12, color=FG_MUTED, font=FONT_BODY,
+        )
 
     _footer(slide, page=3, total=total)
 
 
-def slide_proof(prs, total):
+def slide_signal(prs, total):
+    """Slide 4 — SIGNAL. Comparison ledger + THE MOAT + 68% Lumanu anchor."""
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
     _white_background(slide)
     _logo_corner(slide)
-    _micro_label(slide, text="Proof + Moat", top_in=0.95)
+    _micro_label(slide, text="Signal.", top_in=0.95)
 
     _hero(
         slide,
-        text="Cluely already paid creators to do this.",
-        top_in=1.55, size=32, height=1.2,
+        text="Pay for proof, not for follower count.",
+        top_in=1.5, size=28, height=1.0,
     )
 
-    col_w = 5.9
-    gap = 0.25
-    top = 2.95
-    height = 2.5
-
-    # LEFT — Cluely
-    left_box = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE,
-        Inches(0.7), Inches(top), Inches(col_w), Inches(height),
+    # Anchor stat strip — Lumanu 68% (replaces UNVERIFIED 78%)
+    anchor_top = 2.55
+    anchor_h = 0.85
+    _rounded_card(
+        slide, left_in=0.7, top_in=anchor_top, width_in=11.93, height_in=anchor_h,
+        fill_color=ACCENT_SOFT, line_color=ACCENT, line_pt=1.0,
     )
-    left_box.adjustments[0] = 0.05
-    left_box.fill.solid()
-    left_box.fill.fore_color.rgb = BG_ELEV
-    left_box.line.color.rgb = BORDER
-    left_box.line.width = Pt(0.75)
-
-    left_tf = _add_textbox(
-        slide,
-        left=Inches(0.95), top=Inches(top + 0.3),
-        width=Inches(col_w - 0.5), height=Inches(height - 0.4),
+    tf = _add_textbox(
+        slide, left=Inches(0.95), top=Inches(anchor_top + 0.16),
+        width=Inches(11.5), height=Inches(anchor_h - 0.3),
     )
-    _add_paragraph(left_tf, "CLUELY", size=10, bold=True, color=FG_MUTED,
-                   font=FONT_DISPLAY, spacing=120, first=True, space_after=10)
-    _add_paragraph(left_tf, "$500K", size=56, bold=True, color=FG, font=FONT_DISPLAY, space_after=4)
-    _add_paragraph(left_tf, "creator bounty — all-time.",
-                   size=13, color=FG_MUTED, font=FONT_BODY)
-
-    # RIGHT — Mercor
-    right_left = 0.7 + col_w + gap
-    right_box = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE,
-        Inches(right_left), Inches(top), Inches(col_w), Inches(height),
-    )
-    right_box.adjustments[0] = 0.05
-    right_box.fill.solid()
-    right_box.fill.fore_color.rgb = ACCENT_SOFT
-    right_box.line.color.rgb = ACCENT
-    right_box.line.width = Pt(1.0)
-
-    right_tf = _add_textbox(
-        slide,
-        left=Inches(right_left + 0.25), top=Inches(top + 0.3),
-        width=Inches(col_w - 0.5), height=Inches(height - 0.4),
-    )
-    _add_paragraph(right_tf, "MERCOR", size=10, bold=True, color=ACCENT,
-                   font=FONT_DISPLAY, spacing=120, first=True, space_after=10)
-    _add_paragraph(right_tf, "$1.5M / day", size=56, bold=True, color=ACCENT,
-                   font=FONT_DISPLAY, space_after=4)
-    _add_paragraph(right_tf, "contractor wages — every day.",
-                   size=13, color=FG, font=FONT_BODY)
-
-    # Execution proof — single line under the cards
-    proof_tf = _add_textbox(slide, left=Inches(0.7), top=Inches(6.0),
-                            width=Inches(12), height=Inches(0.7))
     _add_paragraph(
-        proof_tf,
-        "We ran the same play through UCSB and fraternity networks. It worked. Mercor can run it bigger.",
-        size=12, color=FG_MUTED, font=FONT_BODY, first=True,
+        tf,
+        "68% of brand-creator contracts include performance metrics — up from 42% in 2023.",
+        size=15, bold=True, color=FG, font=FONT_DISPLAY, first=True, space_after=2,
     )
+    _add_paragraph(
+        tf, "Lumanu $1B+ payouts dataset, 2025.",
+        size=10, color=FG_MUTED, font=FONT_BODY,
+    )
+
+    # Comparison ledger — header + 4 rows including THE MOAT
+    ledger_top = 3.7
+    col1_left = 0.7
+    col1_w = 4.3
+    col2_left = 5.2
+    col2_w = 3.7
+    col3_left = 9.05
+    col3_w = 3.58
+    row_h = 0.55
+    rows = [
+        ("Ranking input",   "Follower count",            "Outcome history × niche fit"),
+        ("Trust check",     "Self-declared",             "Handle + post-fingerprint verified"),
+        ("Pricing",         "Flat per post",             "Placement on close + perf kicker"),
+        ("THE MOAT",        "—",                          "Predictor delta vs follower-baseline +18%, 90d"),
+    ]
+
+    # Header
+    head_tf_a = _add_textbox(slide, left=Inches(col1_left), top=Inches(ledger_top),
+                             width=Inches(col1_w), height=Inches(0.4))
+    _add_paragraph(head_tf_a, "DIMENSION", size=9, bold=True, color=FG_SUBTLE,
+                   font=FONT_DISPLAY, spacing=120, first=True)
+    head_tf_b = _add_textbox(slide, left=Inches(col2_left), top=Inches(ledger_top),
+                             width=Inches(col2_w), height=Inches(0.4))
+    _add_paragraph(head_tf_b, "INDUSTRY DEFAULT", size=9, bold=True, color=FG_SUBTLE,
+                   font=FONT_DISPLAY, spacing=120, first=True)
+    head_tf_c = _add_textbox(slide, left=Inches(col3_left), top=Inches(ledger_top),
+                             width=Inches(col3_w), height=Inches(0.4))
+    _add_paragraph(head_tf_c, "MERCOR CREATOR DOMAIN", size=9, bold=True, color=ACCENT,
+                   font=FONT_DISPLAY, spacing=120, first=True)
+
+    # Rule line
+    rule = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE, Inches(col1_left), Inches(ledger_top + 0.32),
+        Inches(col3_left + col3_w - col1_left), Pt(0.75),
+    )
+    rule.fill.solid(); rule.fill.fore_color.rgb = BORDER; rule.line.fill.background()
+
+    base = ledger_top + 0.45
+    for i, (dim, default, mercor) in enumerate(rows):
+        y = base + i * row_h
+        is_moat = dim == "THE MOAT"
+        if is_moat:
+            # subtle accent-soft band for the moat row
+            band = slide.shapes.add_shape(
+                MSO_SHAPE.RECTANGLE,
+                Inches(col1_left - 0.08), Inches(y - 0.05),
+                Inches(col3_left + col3_w - col1_left + 0.16), Inches(row_h - 0.05),
+            )
+            band.fill.solid(); band.fill.fore_color.rgb = ACCENT_SOFT
+            band.line.fill.background()
+        tf_a = _add_textbox(slide, left=Inches(col1_left), top=Inches(y),
+                            width=Inches(col1_w), height=Inches(row_h))
+        _add_paragraph(
+            tf_a, dim, size=11, bold=True,
+            color=ACCENT if is_moat else FG, font=FONT_DISPLAY, first=True,
+        )
+        tf_b = _add_textbox(slide, left=Inches(col2_left), top=Inches(y),
+                            width=Inches(col2_w), height=Inches(row_h))
+        _add_paragraph(
+            tf_b, default, size=11,
+            color=FG_MUTED, font=FONT_BODY, first=True,
+        )
+        tf_c = _add_textbox(slide, left=Inches(col3_left), top=Inches(y),
+                            width=Inches(col3_w), height=Inches(row_h))
+        _add_paragraph(
+            tf_c, mercor, size=11, bold=is_moat,
+            color=FG, font=FONT_BODY, first=True,
+        )
 
     _footer(slide, page=4, total=total)
 
 
-def slide_plan(prs, total):
+def slide_verification(prs, total):
+    """Slide 5 — VERIFICATION. NEW. 4-step ladder, steps 3+4 honest "manual review for v1"."""
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
     _white_background(slide)
     _logo_corner(slide)
-    _micro_label(slide, text="The plan", top_in=0.95)
+    _micro_label(slide, text="Verification.", top_in=0.95)
 
-    _hero(slide, text="Build it over the summer. Ship it at Q4.",
-          top_in=1.55, size=30, height=1.0)
+    _hero(
+        slide,
+        text="Four checks to filter the fakes.",
+        top_in=1.5, size=28, height=0.8,
+    )
 
-    # Two-phase timeline strip
-    phases = [
-        ("Summer", "Internship build + PMF", "Logan + Aarnav, paid as Mercor interns. Real campaigns running by Aug."),
-        ("Q4", "Deploy with Eng + Growth",   "Hand-off to Mercor's eng and growth teams. Domain row goes live."),
+    # Left column — the ladder (4 steps)
+    ladder_left = 0.7
+    ladder_w = 7.5
+    ladder_top = 2.55
+    step_h = 0.95
+
+    steps = [
+        ("01", "Handle ownership",
+         "TikTok/IG handle resolves to a live profile with matching display name.", False),
+        ("02", "Fingerprint",
+         "Recent post timestamps + caption style confirm consistent authorship.", False),
+        ("03", "Niche claim",
+         "Self-declared tags vs last 30 posts. Manual review for v1.", True),
+        ("04", "Audience truth",
+         "Sampled audience demographics check. Manual review for v1.", True),
     ]
-    box_w = 6.10
-    gap = 0.30
-    start = 0.7
-    top = 2.85
-    box_h = 1.45
-    for i, (when, what, body) in enumerate(phases):
-        left = start + i * (box_w + gap)
-        box = slide.shapes.add_shape(
-            MSO_SHAPE.ROUNDED_RECTANGLE,
-            Inches(left), Inches(top), Inches(box_w), Inches(box_h),
+    for i, (num, head, body, manual) in enumerate(steps):
+        y = ladder_top + i * step_h
+        # number circle
+        circle = slide.shapes.add_shape(
+            MSO_SHAPE.OVAL,
+            Inches(ladder_left), Inches(y + 0.05),
+            Inches(0.55), Inches(0.55),
         )
-        box.adjustments[0] = 0.06
-        box.fill.solid()
-        box.fill.fore_color.rgb = BG_ELEV if i == 0 else ACCENT_SOFT
-        box.line.color.rgb = BORDER if i == 0 else ACCENT
-        box.line.width = Pt(0.75 if i == 0 else 1.0)
+        circle.fill.solid()
+        circle.fill.fore_color.rgb = ACCENT_SOFT
+        circle.line.color.rgb = ACCENT
+        circle.line.width = Pt(0.75)
+        ctf = circle.text_frame
+        ctf.margin_left = Emu(0); ctf.margin_right = Emu(0)
+        ctf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        ctf.paragraphs[0].text = ""
+        cp = ctf.paragraphs[0]; cp.alignment = PP_ALIGN.CENTER
+        crun = cp.add_run(); crun.text = num
+        _set_run_style(crun, size=12, bold=True, color=ACCENT, font=FONT_DISPLAY)
 
+        body_tf = _add_textbox(
+            slide, left=Inches(ladder_left + 0.75), top=Inches(y),
+            width=Inches(ladder_w - 0.85), height=Inches(step_h),
+        )
+        _add_paragraph(
+            body_tf, head, size=15, bold=True, color=FG, font=FONT_DISPLAY,
+            first=True, space_after=2,
+        )
+        _add_paragraph(
+            body_tf, body, size=11,
+            color=FG_MUTED, font=FONT_BODY, space_after=2,
+        )
+        if manual:
+            tag_tf = _add_textbox(
+                slide, left=Inches(ladder_left + 0.75), top=Inches(y + 0.55),
+                width=Inches(ladder_w - 0.85), height=Inches(0.3),
+            )
+            _add_paragraph(
+                tag_tf, "MANUAL REVIEW FOR V1",
+                size=8, bold=True, color=ACCENT, font=FONT_DISPLAY,
+                spacing=140, first=True,
+            )
+
+    # Right column — three stat cards stacked
+    stat_left = 8.55
+    stat_w = 4.08
+    stat_top = 2.55
+    stat_h = 1.3
+    stat_gap = 0.18
+    stats = [
+        ("37.2%", "of influencer followers are fake/inauthentic. ~$4.6B/yr brand waste.",
+         "SociaVault 100K-account audit, 2025."),
+        ("55%",   "of Instagram influencers have engaged in fraudulent activity.",
+         "HypeAuditor State of Influencer Marketing 2024."),
+        ("$53,088", "FTC max civil penalty per violation (Final Rule, eff. 2024-10-21).",
+         "Federal Register, 2024."),
+    ]
+    for i, (big, line, src) in enumerate(stats):
+        y = stat_top + i * (stat_h + stat_gap)
+        _rounded_card(
+            slide, left_in=stat_left, top_in=y, width_in=stat_w, height_in=stat_h,
+            fill_color=BG_ELEV, line_color=BORDER,
+        )
         tf = _add_textbox(
-            slide, left=Inches(left + 0.32), top=Inches(top + 0.25),
-            width=Inches(box_w - 0.64), height=Inches(box_h - 0.4),
+            slide, left=Inches(stat_left + 0.22), top=Inches(y + 0.16),
+            width=Inches(stat_w - 0.44), height=Inches(stat_h - 0.3),
         )
         _add_paragraph(
-            tf, when.upper(), size=10, bold=True, color=ACCENT,
-            font=FONT_DISPLAY, spacing=120, first=True, space_after=6,
+            tf, big, size=22, bold=True, color=ACCENT,
+            font=FONT_DISPLAY, first=True, space_after=2,
         )
         _add_paragraph(
-            tf, what, size=18, bold=True, color=FG, font=FONT_DISPLAY,
+            tf, line, size=10, color=FG, font=FONT_BODY, space_after=2,
+        )
+        _add_paragraph(
+            tf, src, size=8, color=FG_SUBTLE, font=FONT_BODY,
+        )
+
+    _footer(slide, page=5, total=total)
+
+
+def slide_day1_revenue(prs, total):
+    """Slide 6 — DAY-1 REVENUE. Three lines on Logan × Celsius signed deal."""
+    blank = prs.slide_layouts[6]
+    slide = prs.slides.add_slide(blank)
+    _white_background(slide)
+    _logo_corner(slide)
+    _micro_label(slide, text="Day-1 revenue.", top_in=0.95)
+
+    _hero(
+        slide,
+        text="Three revenue lines. One signed deal.",
+        top_in=1.5, size=28, height=0.9,
+    )
+
+    lines = [
+        (
+            "a", "Placement fee on close",
+            "$170",
+            "20% × $850 base contract.",
+            "Headhunter contingent benchmark.",
+        ),
+        (
+            "b", "Performance kicker (per-post)",
+            "$0–$50",
+            "5% of view-bonus pool.",
+            "Lumanu pattern.",
+        ),
+        (
+            "c", "RL data licensing",
+            "Per task",
+            "Outcome data + rubric scores feed Mercor's existing human-data market for RL environments.",
+            "Illustrative — flagged in deck.",
+        ),
+    ]
+    top = 2.7
+    row_h = 1.05
+    for i, (tag, head, dollars, body, src) in enumerate(lines):
+        y = top + i * row_h
+        # Tag pill
+        pill = slide.shapes.add_shape(
+            MSO_SHAPE.OVAL,
+            Inches(0.7), Inches(y + 0.1), Inches(0.45), Inches(0.45),
+        )
+        pill.fill.solid(); pill.fill.fore_color.rgb = ACCENT
+        pill.line.fill.background()
+        ctf = pill.text_frame
+        ctf.margin_left = Emu(0); ctf.margin_right = Emu(0)
+        ctf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        ctf.paragraphs[0].text = ""
+        cp = ctf.paragraphs[0]; cp.alignment = PP_ALIGN.CENTER
+        crun = cp.add_run(); crun.text = tag
+        _set_run_style(crun, size=14, bold=True, color=BG, font=FONT_DISPLAY)
+
+        # Headline + body
+        body_tf = _add_textbox(
+            slide, left=Inches(1.35), top=Inches(y + 0.05),
+            width=Inches(8.0), height=Inches(row_h),
+        )
+        _add_paragraph(
+            body_tf, head, size=15, bold=True, color=FG, font=FONT_DISPLAY,
+            first=True, space_after=2,
+        )
+        _add_paragraph(
+            body_tf, body, size=11, color=FG_MUTED, font=FONT_BODY, space_after=2,
+        )
+        _add_paragraph(
+            body_tf, src, size=9, color=FG_SUBTLE, font=FONT_BODY,
+        )
+
+        # Dollar column (right-aligned)
+        money_tf = _add_textbox(
+            slide, left=Inches(9.6), top=Inches(y + 0.15),
+            width=Inches(3.05), height=Inches(0.7),
+        )
+        _add_paragraph(
+            money_tf, dollars, size=22, bold=True, color=ACCENT,
+            font=FONT_DISPLAY, align=PP_ALIGN.RIGHT, first=True,
+        )
+
+    # Bottom callout — verbatim DAY1_REVENUE_HEADLINE
+    callout_top = 6.0
+    callout_h = 0.9
+    _rounded_card(
+        slide, left_in=0.7, top_in=callout_top, width_in=11.93, height_in=callout_h,
+        fill_color=ACCENT_SOFT, line_color=ACCENT, line_pt=1.0,
+    )
+    tf = _add_textbox(
+        slide, left=Inches(0.95), top=Inches(callout_top + 0.18),
+        width=Inches(11.5), height=Inches(callout_h - 0.3), anchor=MSO_ANCHOR.MIDDLE,
+    )
+    _add_paragraph(
+        tf, DAY1_REVENUE_HEADLINE,
+        size=13, bold=True, color=FG, font=FONT_DISPLAY, first=True,
+    )
+
+    _footer(slide, page=6, total=total)
+
+
+def slide_prove_by_august(prs, total):
+    """Slide 7 — PROVE BY AUGUST. Four falsifiable proof points + verdict gate."""
+    blank = prs.slide_layouts[6]
+    slide = prs.slides.add_slide(blank)
+    _white_background(slide)
+    _logo_corner(slide)
+    _micro_label(slide, text="Prove by august.", top_in=0.95)
+
+    _hero(
+        slide,
+        text="Four proof points. Falsifiable. By August.",
+        top_in=1.5, size=28, height=0.9,
+    )
+
+    # 2x2 grid of proof points
+    proofs = [
+        ("01", "Workflow pain real",
+         "10 brand interviews. Quantify per-creator review time."),
+        ("02", "Verification works",
+         "1,000 creators screened. Catch rate vs ground truth."),
+        ("03", "Quality scoring beats baseline",
+         "Mercor model vs follower-count, on 5 brands."),
+        ("04", "Outcome prediction holds",
+         "Predicted vs actual on 10 finished campaigns."),
+    ]
+    grid_left = 0.7
+    grid_top = 2.65
+    cell_w = 5.95
+    cell_h = 1.35
+    cell_gap = 0.25
+    for i, (num, head, body) in enumerate(proofs):
+        col = i % 2
+        row = i // 2
+        x = grid_left + col * (cell_w + cell_gap)
+        y = grid_top + row * (cell_h + cell_gap)
+        _rounded_card(
+            slide, left_in=x, top_in=y, width_in=cell_w, height_in=cell_h,
+            fill_color=BG_ELEV, line_color=BORDER,
+        )
+        tf = _add_textbox(
+            slide, left=Inches(x + 0.3), top=Inches(y + 0.2),
+            width=Inches(cell_w - 0.6), height=Inches(cell_h - 0.35),
+        )
+        _add_paragraph(
+            tf, num, size=10, bold=True, color=ACCENT,
+            font=FONT_DISPLAY, spacing=120, first=True, space_after=4,
+        )
+        _add_paragraph(
+            tf, head, size=15, bold=True, color=FG, font=FONT_DISPLAY,
             space_after=4,
         )
         _add_paragraph(
             tf, body, size=11, color=FG_MUTED, font=FONT_BODY,
         )
 
-    # Three foundational questions for Aaron
-    _micro_label(slide, text="What we need from you", top_in=4.7)
+    # Verdict gate strip
+    gate_top = 5.65
+    gate_h = 0.85
+    _rounded_card(
+        slide, left_in=0.7, top_in=gate_top, width_in=11.93, height_in=gate_h,
+        fill_color=ACCENT_SOFT, line_color=ACCENT, line_pt=1.0,
+    )
+    tf = _add_textbox(
+        slide, left=Inches(0.95), top=Inches(gate_top + 0.16),
+        width=Inches(11.5), height=Inches(gate_h - 0.3), anchor=MSO_ANCHOR.MIDDLE,
+    )
+    _add_paragraph(
+        tf, "4 of 4 → strategic adjacency. 2 of 4 → kill it.",
+        size=15, bold=True, color=FG, font=FONT_DISPLAY, first=True, space_after=2,
+    )
+    _add_paragraph(
+        tf, "Paid like a headhunter. Placement on signed deals.",
+        size=11, color=FG_MUTED, font=FONT_BODY,
+    )
 
-    questions = [
-        "Where does Creator Experts live inside Mercor?",
-        "Hourly pricing, or per-post with a relevant-eyes bonus?",
-        "Who handles brand-side sales — Mercor's team, or ours during the pilot?",
-    ]
-    base_top = 5.30
-    row_h = 0.55
-    for i, q in enumerate(questions):
-        y = base_top + i * row_h
-        # Number column
-        num_tf = _add_textbox(slide, left=Inches(0.7), top=Inches(y),
-                              width=Inches(0.55), height=Inches(0.5))
-        _add_paragraph(
-            num_tf, f"{i + 1:02d}", size=14, bold=True, color=ACCENT,
-            font=FONT_DISPLAY, first=True,
-        )
-        # Question column
-        q_tf = _add_textbox(slide, left=Inches(1.35), top=Inches(y + 0.02),
-                            width=Inches(11.3), height=Inches(0.5))
-        _add_paragraph(
-            q_tf, q, size=14, color=FG, font=FONT_BODY, first=True,
-        )
-
-    _footer(slide, page=5, total=total)
+    _footer(slide, page=7, total=total)
 
 
 def slide_demo(prs, total):
+    """Slide 8 — NOW → LIVE DEMO. Vercel URL handoff (same as v2 slide 7)."""
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
     _white_background(slide)
@@ -531,7 +797,7 @@ def slide_demo(prs, total):
     run.text = "Live: musing-maxwell-84ed29.vercel.app"
     _set_run_style(run, size=15, bold=True, color=BG, font=FONT_DISPLAY)
 
-    _footer(slide, page=6, total=total)
+    _footer(slide, page=8, total=total)
 
 
 # ─── Build ──────────────────────────────────────────────────────────────────
@@ -541,7 +807,16 @@ def build_deck(out_path: Path) -> None:
     prs.slide_width = SLIDE_W
     prs.slide_height = SLIDE_H
 
-    builders = [slide_cover, slide_numbers, slide_why, slide_proof, slide_plan, slide_demo]
+    builders = [
+        slide_cover,
+        slide_broken_workflow,
+        slide_why_now,
+        slide_signal,
+        slide_verification,
+        slide_day1_revenue,
+        slide_prove_by_august,
+        slide_demo,
+    ]
     total = len(builders)
     for fn in builders:
         fn(prs, total)

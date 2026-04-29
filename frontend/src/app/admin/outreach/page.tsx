@@ -6,6 +6,10 @@ import { Check, ChevronDown, ChevronRight, Send, Sparkles } from "lucide-react";
 import { CREATORS, CREATORS_BY_ID, type Creator } from "@/lib/data/creators";
 import { BRANDS_BY_ID, type Brand } from "@/lib/data/brands";
 import { CAMPAIGNS_BY_ID } from "@/lib/data/campaigns";
+import {
+  OUTREACH_AUTOMATION_COUNTER,
+  OUTREACH_CONTRACT_REVENUE_STRIP,
+} from "@/lib/data/source-of-truth";
 import { Avatar } from "@/components/shell/Avatar";
 import { BrandMark } from "@/components/shell/BrandMark";
 import { ClaudeMark } from "@/components/shell/ClaudeMark";
@@ -555,6 +559,13 @@ function OutreachInner() {
       <div className="flex items-baseline justify-between">
         <h1 className="h-display text-[28px]">Inbox</h1>
       </div>
+      <div
+        className="mt-1 inline-flex items-center gap-1.5 text-[12px] text-[var(--fg-muted)]"
+        data-test-id="outreach-automation-counter"
+      >
+        <Sparkles size={12} className="text-[var(--accent)]" />
+        <span>{OUTREACH_AUTOMATION_COUNTER}</span>
+      </div>
 
       {/* Two-pane layout: scrollable inbox + chat. No negotiation rail —
           deliverables are decided in the interview, here is just outreach. */}
@@ -611,10 +622,26 @@ interface DealRowProps {
   onAssignSpl: (splId: string | null) => void;
 }
 
+/**
+ * Deterministically tags ~93% of threads as "auto-sent" for the demo.
+ * Heuristic: hash the deal id to a stable int and reserve the lowest 7%
+ * of the hash space for "manually edited" threads. The pill is purely
+ * presentational — a marker that the SPL agent drafted and sent the
+ * opener without operator intervention.
+ */
+function isAutomatedThread(dealId: string): boolean {
+  let hash = 0;
+  for (let i = 0; i < dealId.length; i++) {
+    hash = (hash * 31 + dealId.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 100 >= 7;
+}
+
 function DealRow({ deal, selected, onSelect, onAssignSpl }: DealRowProps) {
   const creator = CREATORS_BY_ID[deal.creatorId];
   const brand = BRANDS_BY_ID[deal.brandId];
   if (!creator || !brand) return null;
+  const automated = isAutomatedThread(deal.id);
 
   const lastCreatorMsg = deal.creatorChat.messages[deal.creatorChat.messages.length - 1];
   const lastBrandMsg = deal.brandChat.messages[deal.brandChat.messages.length - 1];
@@ -652,7 +679,19 @@ function DealRow({ deal, selected, onSelect, onAssignSpl }: DealRowProps) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[13.5px] font-medium truncate">{creator.name} × {brand.name}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="text-[13.5px] font-medium truncate">{creator.name} × {brand.name}</span>
+            {automated ? (
+              <span
+                className="pill pill-accent shrink-0"
+                style={{ fontSize: 10, whiteSpace: "nowrap" }}
+                data-test-id={`outreach-automated-pill-${deal.id}`}
+                title="Drafted and sent by the SPL agent without operator edits."
+              >
+                AUTOMATED
+              </span>
+            ) : null}
+          </span>
           <StagePill stage={deal.stage} />
         </div>
         <div className="mt-0.5 text-[11px] text-[var(--fg-muted)] truncate">{(deal.similarity * 100).toFixed(0)}% match · {fmtFollowers(creator.followers)}</div>
@@ -1514,6 +1553,18 @@ function ContractPanel({ deal, onUpdate }: { deal: Deal; onUpdate: (p: Partial<D
           </div>
         </div>
       </dl>
+
+      {/* Day-1 revenue micro-strip — frames the placement fee + perf
+          kicker that books the moment a deal is signed, before any
+          per-task RL revenue lands. Copy is canonical (see
+          source-of-truth.ts) so deck slide 6 and the contract preview
+          stay in lockstep. */}
+      <div
+        className="mt-3 rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] p-2 text-[11px] text-[var(--accent-on-soft)]"
+        data-test-id="outreach-day1-revenue"
+      >
+        {OUTREACH_CONTRACT_REVENUE_STRIP}
+      </div>
 
       {/* Approvals */}
       <div className="mt-4 space-y-2 border-t border-[var(--border)] pt-4">

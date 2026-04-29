@@ -20,13 +20,21 @@ import {
   Sparkles,
   Inbox,
   TrendingUp,
+  ShieldCheck,
 } from "lucide-react";
 import { NotificationsDropdown } from "@/components/shell/NotificationsDropdown";
 import { CookieConsentButton } from "@/components/shell/CookieConsent";
 import { useUser } from "@/lib/state/user";
 import clsx from "clsx";
 
-type Item = { href: string; label: string; icon: React.ElementType; testId?: string };
+type Item = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  testId?: string;
+  /** Render a small "BETA" (or similar) pill next to the label. */
+  betaPill?: boolean;
+};
 
 // Mirrors work.mercor.com Logan-side sidebar 1:1: 5 items, no Deliverables.
 // (Deliverables is still reachable via /home → Contracts row + /contracts/[id]
@@ -47,8 +55,19 @@ const CREATOR_ITEMS: Item[] = [
 // have one entry point. The /admin/creators route stays accessible by direct
 // URL (deep links from older threads still resolve) but is no longer
 // surfaced in the rail.
+// /admin/verification is the new mod queue surfacing the 4-step verification
+// ladder for recently-attempted-onboarding creators. Sits before Match in the
+// rail so admins audit identity before they wire experts to brands. BETA pill
+// per Logan 2026-04-29 — copy is stubbed pending live data hookup.
 const ADMIN_ITEMS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  {
+    href: "/admin/verification",
+    label: "Verification",
+    icon: ShieldCheck,
+    betaPill: true,
+    testId: "sidebar-admin-verification",
+  },
   { href: "/admin/match", label: "Match", icon: Sparkles },
   { href: "/admin/outreach", label: "Inbox", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: TrendingUp },
@@ -111,7 +130,20 @@ export function Sidebar() {
                   strokeWidth={active ? 2 : 1.5}
                   fill="none"
                 />
-                <span>{item.label}</span>
+                <span className="inline-flex items-center gap-1">
+                  {item.label}
+                  {item.betaPill ? (
+                    <span
+                      className="rounded-sm px-1 py-px text-[8px] font-semibold uppercase tracking-wide leading-none"
+                      style={{
+                        background: "var(--accent-soft)",
+                        color: "var(--accent-on-soft)",
+                      }}
+                    >
+                      Beta
+                    </span>
+                  ) : null}
+                </span>
               </Link>
             );
           })}

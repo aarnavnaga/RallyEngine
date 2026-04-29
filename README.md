@@ -18,10 +18,12 @@ That's the demo. Edit any page under `frontend/src/app/`, save, hot reload picks
 ## Pitch docs
 
 All in [`docs/pitch/`](./docs/pitch/):
-- [`aaron-call-final.md`](./docs/pitch/aaron-call-final.md) — live call script (verbatim numbers, button text, URLs from prod).
+- [`aaron-call-final.md`](./docs/pitch/aaron-call-final.md) — live call script (v3, verbatim numbers, button text, URLs from prod).
 - [`aaron-demo-day-checklist.md`](./docs/pitch/aaron-demo-day-checklist.md) — T-15 pre-flight, mid-call recovery moves, T+0 wrap-up.
-- [`aaron-call-script.md`](./docs/pitch/aaron-call-script.md) — historical pitch-deck-era script, kept for reference.
-- [`Mercor-Creators-Domain.pptx`](./docs/pitch/Mercor-Creators-Domain.pptx) — the deck.
+- [`aaron-iteration-plan-v3.md`](./docs/pitch/aaron-iteration-plan-v3.md) — post-call rewrite plan that drove the v3 deck + demo.
+- [`Mercor-Creators-Domain.pptx`](./docs/pitch/Mercor-Creators-Domain.pptx) — the deck (**8 slides**). PDF export alongside.
+
+Day-1 revenue strips appear across `/admin/match`, `/admin/outreach`, and `/admin/interviews`, and pull from [`frontend/src/lib/data/source-of-truth.ts`](./frontend/src/lib/data/source-of-truth.ts) so the headline copy stays 1:1 with the deck.
 
 ## Tests + verify
 
@@ -46,10 +48,12 @@ The spec lives at [`frontend/e2e/aaron-flow.spec.ts`](./frontend/e2e/aaron-flow.
 - `/deliverables/[contractId]` — campaign deliverable submission with bonus tier unlocks.
 
 **Admin flow** (sign in as Aaron)
-- `/admin` — KPI dashboard: 12 active campaigns, 38 pending applicants, $24K GMV last 7d.
+- `/admin` — overview with 3-tile data flywheel strip (Campaigns run · Outcomes recorded · RL tasks graded) and a 5-node pipeline footer (Source → Verify → Match → Outreach → Evaluate → ROI).
 - `/admin/creators` — pipeline data table sorted by Impact Score.
-- `/admin/match` — manual matching workbench. Pick a brand → ranked creators with similarity, impact, suggested pay. **Logan is pinned #1 for Celsius.** Expand his row → RAG cites his actual TikTok URLs as the audience-overlap signal.
-- `/admin/outreach` — outreach approval queue, two tabs (creators / brands).
+- `/admin/match` — matching workbench with **BEFORE/AFTER** toggle, **VERIFIED** ladder badge per creator (4-step pass-state hover), **Predicted ROI** mini-stat per row, and the canonical day-1 revenue strip on the contract preview. **Logan is pinned #1 for Celsius.** Expand his row → RAG cites his actual TikTok URLs.
+- `/admin/verification` — moderation queue showing the last N onboarding attempts with VERIFIED ladder pass/fail by step + rejection reasons.
+- `/admin/interviews/[creatorId]` — RL Studio emulation. Three-pane Project / World / Task IA, Writer/Reviewer role toggle (Reviewer default), pairwise A/B with 1–5 winner radio + 1–7 Likert sliders + free-text *improvement areas*. Day-1 revenue strip in the header.
+- `/admin/outreach` — outreach approval queue, two tabs (creators / brands), **AUTOMATED** pill on every untouched thread + a "47 of 50 outreach drafts sent without edits" counter at the top.
 - `/admin/campaigns/[id]` — live perf simulator with view ticks, comment-relevance, payout breakdown.
 
 **Real data**
@@ -85,7 +89,7 @@ python3 scripts/build_aaron_deck.py
 
 Output: `docs/pitch/Mercor-Creators-Domain.pptx`. Open in Keynote.
 
-## Three things Aaron needs to answer (slide 5)
+## Three things Aaron needs to answer (slide 7)
 
 1. Where does Creator Experts live inside Mercor?
 2. Hourly pricing, or per-post with a relevant-eyes bonus?

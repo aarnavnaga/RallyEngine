@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/shell/AppShell";
+import { PersonaGuard } from "@/components/shell/PersonaGuard";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -10,7 +11,9 @@ export const metadata: Metadata = { title: "Home" };
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppShell>
-      <div className="mx-auto max-w-[1080px]">{children}</div>
+      <PersonaGuard required="creator" fallback="/admin">
+        <div className="mx-auto max-w-[1080px]">{children}</div>
+      </PersonaGuard>
     </AppShell>
   );
 }

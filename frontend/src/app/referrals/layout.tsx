@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/shell/AppShell";
+import { PersonaGuard } from "@/components/shell/PersonaGuard";
 
 export const metadata: Metadata = { title: "Referrals" };
 
@@ -7,7 +8,9 @@ export const metadata: Metadata = { title: "Referrals" };
 export default function L({ children }: { children: React.ReactNode }) {
   return (
     <AppShell>
-      <div className="mx-auto max-w-[1080px]">{children}</div>
+      <PersonaGuard required="creator" fallback="/admin">
+        <div className="mx-auto max-w-[1080px]">{children}</div>
+      </PersonaGuard>
     </AppShell>
   );
 }

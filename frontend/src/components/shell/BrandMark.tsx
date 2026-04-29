@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Brand } from "@/lib/data/brands";
 
-type FallbackLevel = "primary" | "clearbit" | "google" | "letter";
+type FallbackLevel = "primary" | "google" | "letter";
 
 function domainFromWebsite(website: string): string {
   return website.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
@@ -15,6 +15,19 @@ function isAbsoluteUrl(value: string): boolean {
 
 function isLocalPath(value: string): boolean {
   return value.startsWith("/");
+}
+
+// Brand fixtures sometimes hardcode `https://logo.clearbit.com/<domain>` as
+// `logo_url`. Clearbit's free DNS started returning ERR_NAME_NOT_RESOLVED some
+// time before 2026-04, polluting the DevTools console with ~6 errors per page
+// even though the visual fallback chain hides it. We treat any clearbit URL
+// as if no explicit logo were provided so the chain skips straight to google
+// favicon → letter tile.
+function isUsableExplicitLogo(value: string | undefined): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (!(isAbsoluteUrl(value) || isLocalPath(value))) return false;
+  if (value.includes("logo.clearbit.com")) return false;
+  return true;
 }
 
 type BrandMarkProps = {
@@ -37,18 +50,14 @@ type BrandMarkProps = {
 
 export function BrandMark({ brand, size = 28, eager = false }: BrandMarkProps) {
   const domain = domainFromWebsite(brand.website);
-  const clearbitSrc = `https://logo.clearbit.com/${domain}`;
   const googleSrc = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 
-  // If brand.logo_url is an absolute URL or a local path, use it as the
-  // primary source. Otherwise skip straight to the clearbit/google chain
-  // built from brand.website.
-  const hasExplicitLogo =
-    typeof brand.logo_url === "string" &&
-    brand.logo_url.length > 0 &&
-    (isAbsoluteUrl(brand.logo_url) || isLocalPath(brand.logo_url));
+  // If brand.logo_url is an absolute URL or a local path AND not a known-bad
+  // clearbit URL, use it as the primary source. Otherwise skip straight to
+  // google favicon → letter-tile.
+  const hasExplicitLogo = isUsableExplicitLogo(brand.logo_url);
 
-  const initialLevel: FallbackLevel = hasExplicitLogo ? "primary" : "clearbit";
+  const initialLevel: FallbackLevel = hasExplicitLogo ? "primary" : "google";
   const [level, setLevel] = useState<FallbackLevel>(initialLevel);
 
   if (level === "letter") {
@@ -72,16 +81,12 @@ export function BrandMark({ brand, size = 28, eager = false }: BrandMarkProps) {
   let src: string;
   if (level === "primary" && hasExplicitLogo && brand.logo_url) {
     src = brand.logo_url;
-  } else if (level === "clearbit") {
-    src = clearbitSrc;
   } else {
     src = googleSrc;
   }
 
   function handleError() {
     if (level === "primary") {
-      setLevel("clearbit");
-    } else if (level === "clearbit") {
       setLevel("google");
     } else {
       setLevel("letter");

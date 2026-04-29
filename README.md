@@ -11,9 +11,27 @@ pnpm install
 pnpm dev   # http://localhost:3000
 ```
 
-Open localhost:3000 → top-right persona button → **Sign in as Logan Mann** for the creator flow, or **Sign in as Aaron Langerman** for the admin flow.
+Open localhost:3000 → top-right **Log in** → choose **"I am a creator (Logan)"** for the creator flow, or **"I am on the Mercor team (Aaron)"** for the admin flow.
 
 That's the demo. Edit any page under `frontend/src/app/`, save, hot reload picks it up.
+
+## Pitch docs
+
+All in [`docs/pitch/`](./docs/pitch/):
+- [`aaron-call-final.md`](./docs/pitch/aaron-call-final.md) — live call script (verbatim numbers, button text, URLs from prod).
+- [`aaron-demo-day-checklist.md`](./docs/pitch/aaron-demo-day-checklist.md) — T-15 pre-flight, mid-call recovery moves, T+0 wrap-up.
+- [`aaron-call-script.md`](./docs/pitch/aaron-call-script.md) — historical pitch-deck-era script, kept for reference.
+- [`Mercor-Creators-Domain.pptx`](./docs/pitch/Mercor-Creators-Domain.pptx) — the deck.
+
+## Tests + verify
+
+```bash
+cd frontend
+pnpm test:e2e   # Playwright spec against prod (4 tests, ~5s)
+pnpm verify     # tsc --noEmit + Playwright spec — run this 10 min before the demo
+```
+
+The spec lives at [`frontend/e2e/aaron-flow.spec.ts`](./frontend/e2e/aaron-flow.spec.ts) and locks in: the end-to-end Aaron flow with stage-timing budgets, dead-link footer hidden on /admin/*, RESET ALL FOR DEMO state-wipe, creator-persona bounce from admin routes, and console-error gating. CI runs it on every push to `main` and on every PR via `.github/workflows/e2e.yml`.
 
 ## What's implemented
 

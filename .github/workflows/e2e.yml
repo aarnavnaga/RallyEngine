@@ -14,12 +14,12 @@ on:
 jobs:
   playwright:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
     env:
-      PROD_URL: https://musing-maxwell-84ed29.vercel.app
+      CANONICAL_URL: https://musing-maxwell-84ed29.vercel.app
     steps:
       - uses: actions/checkout@v4
 
@@ -33,14 +33,60 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
+      # On pull_request: try to find a Vercel preview deployment for the PR's
+      # head commit and run the spec against it. This catches regressions
+      # before they merge to main. Falls back to the canonical URL if:
+      #   - VERCEL_TOKEN secret is not configured (admin would need to add it)
+      #   - the Vercel ↔ GitHub integration is off (no automatic preview)
+      #   - the preview hasn't built within the polling window (5 min)
+      # On push to main: always test the canonical alias.
+      - name: Resolve test URL
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -u
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "Push event — using canonical URL: $CANONICAL_URL"
+            echo "url=$CANONICAL_URL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "VERCEL_TOKEN not configured — falling back to canonical URL."
+            echo "Once an admin adds the secret + enables the Vercel↔GH integration,"
+            echo "PRs will automatically test their preview deploy instead."
+            echo "url=$CANONICAL_URL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Polling Vercel for a preview deploy matching $PR_HEAD_SHA..."
+          for i in $(seq 1 50); do
+            url=$(npx --yes vercel@50 ls --token="$VERCEL_TOKEN" --meta githubCommitSha="$PR_HEAD_SHA" 2>/dev/null \
+              | grep -oE 'https://[a-z0-9-]+\.vercel\.app' \
+              | head -1 || true)
+            if [ -n "${url:-}" ]; then
+              echo "Found preview: $url"
+              echo "url=$url" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "No preview found after 5 minutes — falling back to canonical URL."
+          echo "url=$CANONICAL_URL" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run Playwright spec against prod
-        run: pnpm test:e2e
+      - name: Run Playwright spec
+        env:
+          PROD_URL: ${{ steps.target.outputs.url }}
+        run: |
+          echo "Testing against: $PROD_URL"
+          pnpm test:e2e
 
       - name: Upload trace artifacts on failure
         if: failure()

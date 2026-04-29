@@ -119,18 +119,16 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     }
     expect(total, "total flow exceeded 8s budget").toBeLessThan(8_000);
 
-    // Console error gate: only allow benign clearbit/google favicon DNS
-    // errors. After D2 (drop clearbit) we expect 0; google favicon may
-    // still 404 for some domains. Anything else (a real script error,
-    // a 500 from /api/*, a missing module) should fail the test.
+    // Console error gate: only allow benign google favicon proxy 404s for
+    // the few brand domains that have no favicon at /s2/favicons. clearbit
+    // was dropped in D2; the /favicon.ico 404 was fixed in I3 (real ICO at
+    // app/favicon.ico, content-type image/x-icon). Anything else (a real
+    // script error, a 500 from /api/*, a missing module) should fail.
     const benign = (e: { text: string; url: string }) => {
       const blob = `${e.text} ${e.url}`;
       return (
-        blob.includes("logo.clearbit.com") ||
         blob.includes("google.com/s2/favicons") ||
-        blob.includes("/favicon.ico") ||
-        (blob.includes("Failed to load resource") &&
-          (blob.includes("favicon") || blob.includes("clearbit")))
+        blob.includes("logo.clearbit.com")
       );
     };
     const real = consoleErrors.filter((e) => !benign(e));

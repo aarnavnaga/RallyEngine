@@ -607,6 +607,7 @@ function AssessmentsTab() {
           <div className="flex items-stretch gap-4 lg:-mb-24">
             {[
               {
+                slug: "influencer-video-assessment-core",
                 name: "Influencer Video Assessment",
                 duration: "20 minutes",
                 desc: "On-camera audience-fit interview — brand voice + hook quality.",
@@ -614,6 +615,7 @@ function AssessmentsTab() {
                 pay: "$120/hourly",
               },
               {
+                slug: "brainstorming-session-core",
                 name: "Brainstorming Session",
                 duration: "16 minutes",
                 desc: "A quick domain-specific creative brainstorming skills assessment",
@@ -621,39 +623,50 @@ function AssessmentsTab() {
                 pay: "$0/hourly",
               },
               {
+                slug: "data-science-interview-core",
                 name: "Data Science Interview",
                 duration: "30 minutes",
                 desc: "Domain-specific data science skills interview",
                 roles: 0,
                 pay: "$0/hourly",
               },
-            ].map((card) => (
-              <div
-                key={card.name}
-                className="flex w-[260px] shrink-0 flex-col rounded-[14px] bg-white p-5 shadow-[0_12px_28px_rgba(15,7,52,0.22)]"
-              >
-                <div className="flex items-center gap-1.5 text-[12px] text-[var(--fg-muted)]">
-                  <Clock size={12} strokeWidth={1.7} />
-                  {card.duration}
+            ].map((card) => {
+              const href = `/interview/${card.slug}?returnPath=${encodeURIComponent("/home?tab=assessments")}`;
+              return (
+                <div
+                  key={card.slug}
+                  className="flex w-[260px] shrink-0 flex-col rounded-[14px] bg-white p-5 shadow-[0_12px_28px_rgba(15,7,52,0.22)]"
+                >
+                  <div className="flex items-center gap-1.5 text-[12px] text-[var(--fg-muted)]">
+                    <Clock size={12} strokeWidth={1.7} />
+                    {card.duration}
+                  </div>
+                  {/* Title pinned at 2-line height so the longest-wrapping
+                      title (Influencer Video Assessment) doesn't shove the
+                      sibling cards' CORE pill / desc / button out of alignment. */}
+                  <div className="mt-2.5 min-h-[44px] text-[17px] font-semibold leading-snug text-[var(--fg)]">
+                    {card.name}
+                  </div>
+                  <span className="mt-2 inline-block self-start rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
+                    CORE
+                  </span>
+                  <p className="mt-3 min-h-[48px] text-[12px] leading-snug text-[var(--fg-muted)]">{card.desc}</p>
+                  <div className="mt-3 text-[12px] text-[var(--fg-muted)]">
+                    Used by <span className="font-semibold text-[var(--fg)]">{card.roles} roles</span>
+                  </div>
+                  <div className="text-[12px] text-[var(--fg-muted)]">
+                    Paying up to <span className="font-semibold text-[var(--fg)]">{card.pay}</span>
+                  </div>
+                  <Link
+                    href={href}
+                    data-test-id={`home-assessment-hero-cta-${card.slug}`}
+                    className="mt-auto block w-full rounded-[8px] bg-[var(--accent)] py-2 text-center text-[13px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+                  >
+                    Start interview
+                  </Link>
                 </div>
-                <div className="mt-2.5 text-[17px] font-semibold leading-snug text-[var(--fg)]">
-                  {card.name}
-                </div>
-                <span className="mt-2 inline-block self-start rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium tracking-wide text-[var(--fg-muted)]">
-                  CORE
-                </span>
-                <p className="mt-3 min-h-[48px] text-[12px] leading-snug text-[var(--fg-muted)]">{card.desc}</p>
-                <div className="mt-3 text-[12px] text-[var(--fg-muted)]">
-                  Used by <span className="font-semibold text-[var(--fg)]">{card.roles} roles</span>
-                </div>
-                <div className="text-[12px] text-[var(--fg-muted)]">
-                  Paying up to <span className="font-semibold text-[var(--fg)]">{card.pay}</span>
-                </div>
-                <button className="mt-auto w-full rounded-[8px] bg-[var(--accent)] py-2 text-[13px] font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors pt-2 pb-2 mt-4">
-                  Start interview
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

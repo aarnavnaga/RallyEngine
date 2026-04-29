@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Clock,
   Search,
+  HelpCircle,
 } from "lucide-react";
 import {
   CONTRACTS,
@@ -681,6 +682,9 @@ function HomePageInner() {
         <span className="pill pill-success text-[11px]">LinkedIn Linked</span>
       </div>
 
+      {/* Important tasks — Mercor's weekly contractor check-in pattern */}
+      <WeeklyCheckIn />
+
       {/* Tabs */}
       <div className="mt-6 flex items-end gap-0 border-b border-[var(--border)]">
         {TABS.map((t) => {
@@ -725,6 +729,262 @@ function HomePageInner() {
         {activeTab === "saved" && <SavedTab />}
       </div>
     </div>
+  );
+}
+
+// ─── Weekly contractor check-in ──────────────────────────────────────────────
+// Mercor surfaces a weekly availability + workload survey at the top of /home
+// under "Important Tasks". The card shows a due date; the modal collects
+// next-week availability, target hours, and an enrollment-preference radio.
+// Once submitted, we hide the card via local state (no backend in the demo —
+// localStorage persists across reloads so the demo doesn't reset on refresh).
+type Availability = "as-usual" | "partial" | "none";
+type StaffingPreference = "more-current" | "additional" | "satisfied";
+
+function WeeklyCheckIn(): React.JSX.Element | null {
+  const STORAGE_KEY = "mercor.weekly-checkin.v1";
+  const [open, setOpen] = useState<boolean>(false);
+  const [submitted, setSubmitted] = useState<boolean>(false);
+  const [availability, setAvailability] = useState<Availability>("as-usual");
+  const [hours, setHours] = useState<string>("168");
+  const [staffing, setStaffing] = useState<StaffingPreference>("additional");
+
+  // Restore prior submission so the demo stays consistent on refresh.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) setSubmitted(true);
+    } catch {
+      // localStorage may be disabled (incognito/quota) — non-fatal.
+    }
+  }, []);
+
+  // Lock body scroll when the modal is open so the page underneath doesn't
+  // jump around when the user tabs through the radio inputs.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  function submit() {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          availability,
+          hours: Number(hours) || 0,
+          staffing,
+          submittedAt: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      // ignore — submission is purely demo state
+    }
+    setSubmitted(true);
+    setOpen(false);
+  }
+
+  if (submitted) return null;
+
+  // Mirrors Mercor's "Due in 4 days" copy — week starts the next Monday.
+  const dueDays = 4;
+
+  return (
+    <>
+      <section className="mt-6">
+        <div className="text-[13px] font-semibold text-[var(--fg)]">
+          Important Tasks <span className="text-[var(--fg-muted)] font-medium">(1)</span>
+        </div>
+        <div className="mt-2 max-w-[420px] rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-card)]">
+          <div className="text-[14px] font-semibold text-[var(--fg)]">
+            Weekly Contractor Check-In
+          </div>
+          <p className="mt-1 text-[12.5px] leading-[1.5] text-[var(--fg-muted)]">
+            Ensure your availability is not marked as outdated and optionally provide
+            project feedback.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <span className="text-[12px] font-medium text-[#dc2626]">
+              Due in {dueDays} days
+            </span>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="btn-primary text-[12.5px]"
+              data-test-id="weekly-checkin-open"
+            >
+              Complete check-in
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {open ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="weekly-checkin-title"
+          onClick={(e) => {
+            // Click on backdrop (not the dialog itself) closes the modal.
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-[440px] rounded-[14px] bg-white p-6 shadow-[var(--shadow-modal)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2
+                    id="weekly-checkin-title"
+                    className="text-[18px] font-semibold tracking-tight text-[var(--fg)]"
+                  >
+                    Weekly contractor check-in
+                  </h2>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-elev)] px-2 py-0.5 text-[11px] text-[var(--fg-muted)]">
+                    <Clock size={11} /> 1 min
+                  </span>
+                </div>
+                <p className="mt-1 text-[12px] text-[var(--fg-muted)]">
+                  Monday, May 4 — Sunday, May 10, 2026
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="rounded-full p-1 text-[var(--fg-muted)] hover:bg-[var(--bg-hover)]"
+                data-test-id="weekly-checkin-close"
+              >
+                <HelpCircle size={16} />
+              </button>
+            </div>
+
+            {/* Section 1 — availability */}
+            <fieldset className="mt-5">
+              <legend className="text-[13px] font-semibold text-[var(--fg)]">
+                Next week&apos;s availability
+              </legend>
+              <div className="mt-2 space-y-2">
+                <RadioRow
+                  name="availability"
+                  value="as-usual"
+                  checked={availability === "as-usual"}
+                  onChange={() => setAvailability("as-usual")}
+                  label="I'll be available as usual"
+                />
+                <RadioRow
+                  name="availability"
+                  value="partial"
+                  checked={availability === "partial"}
+                  onChange={() => setAvailability("partial")}
+                  label="I'll be unavailable for part of the week"
+                />
+                <RadioRow
+                  name="availability"
+                  value="none"
+                  checked={availability === "none"}
+                  onChange={() => setAvailability("none")}
+                  label="I won't be available at all next week"
+                />
+              </div>
+            </fieldset>
+
+            {/* Section 2 — hours */}
+            <fieldset className="mt-5">
+              <legend className="text-[13px] font-semibold text-[var(--fg)]">
+                Next week&apos;s preferred time commitment
+              </legend>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={168}
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                  className="w-[88px] rounded-md border border-[var(--border)] bg-white px-3 py-2 text-[14px] text-[var(--fg)] outline-none focus:border-[var(--accent)]"
+                  data-test-id="weekly-checkin-hours"
+                />
+                <span className="text-[13px] text-[var(--fg-muted)]">hours</span>
+              </div>
+            </fieldset>
+
+            {/* Section 3 — staffing preference */}
+            <fieldset className="mt-5">
+              <legend className="text-[13px] font-semibold text-[var(--fg)]">
+                How can we help you meet your target time commitment?
+              </legend>
+              <div className="mt-2 space-y-2">
+                <RadioRow
+                  name="staffing"
+                  value="more-current"
+                  checked={staffing === "more-current"}
+                  onChange={() => setStaffing("more-current")}
+                  label="I'd like more work within my current project"
+                />
+                <RadioRow
+                  name="staffing"
+                  value="additional"
+                  checked={staffing === "additional"}
+                  onChange={() => setStaffing("additional")}
+                  label="I'd like to be staffed on an additional project"
+                />
+                <RadioRow
+                  name="staffing"
+                  value="satisfied"
+                  checked={staffing === "satisfied"}
+                  onChange={() => setStaffing("satisfied")}
+                  label="I'm satisfied with my current engagements"
+                />
+              </div>
+            </fieldset>
+
+            <button
+              type="button"
+              onClick={submit}
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2.5 text-[14px] font-medium text-white hover:bg-[var(--accent-hover)]"
+              data-test-id="weekly-checkin-submit"
+            >
+              <CheckCircle2 size={14} /> Next
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function RadioRow({
+  name,
+  value,
+  checked,
+  onChange,
+  label,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}): React.JSX.Element {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 rounded-md border border-[var(--border)] bg-white px-3 py-2.5 text-[13px] text-[var(--fg)] hover:bg-[var(--bg-hover)]">
+      <input
+        type="radio"
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={onChange}
+        className="h-4 w-4 accent-[var(--accent)]"
+      />
+      <span>{label}</span>
+    </label>
   );
 }
 

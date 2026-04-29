@@ -33,7 +33,7 @@ type Message = {
 
 type ChatThread = {
   messages: Message[];
-  draft: string; // Aaron's pre-filled outbound message (Haiku-drafted)
+  draft: string; // Aaron's pre-filled outbound message (deterministic template — see buildOpenerToCreator/Brand)
 };
 
 type ContractTerms = {
@@ -168,11 +168,11 @@ function buildContract(creator: Creator, brand: Brand, payLow: number, payHigh: 
   };
 }
 
-function buildHaikuOutreachToCreator(brand: Brand, creator: Creator, campaignTitle: string): string {
+function buildOpenerToCreator(brand: Brand, creator: Creator, campaignTitle: string): string {
   return `Hey ${creator.name.split(" ")[0]} - ${brand.name} just countered with $${(brand.id === "celsius" ? 850 : 800).toLocaleString()} base + view bonus. Confirms exclusivity at 14 days. Want me to lock or push back on rate?`;
 }
 
-function buildHaikuOutreachToBrand(brand: Brand, creator: Creator): string {
+function buildOpenerToBrand(brand: Brand, creator: Creator): string {
   return `Hey ${brand.name} - ${creator.name} accepts the rate, asking for product first before posting. Our standard practice. Send greenlight to lock contract?`;
 }
 
@@ -255,7 +255,7 @@ function buildDefaultDeals(): Deal[] {
             : []),
         ],
         cfg.creatorReplied
-          ? buildHaikuOutreachToCreator(brand, creator, campaign?.title ?? "")
+          ? buildOpenerToCreator(brand, creator, campaign?.title ?? "")
           : "Following up - did you get the brief? Happy to walk through pay structure on a quick call.",
       ),
       brandChat: chatWith(
@@ -266,7 +266,7 @@ function buildDefaultDeals(): Deal[] {
             : []),
         ],
         cfg.brandReplied
-          ? buildHaikuOutreachToBrand(brand, creator)
+          ? buildOpenerToBrand(brand, creator)
           : "Following up on the slate - want me to send a redlined contract template?",
       ),
       contract,

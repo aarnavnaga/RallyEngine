@@ -1,6 +1,6 @@
 # Rally — Mercor demo
 
-Aarnav — this is the demo we're running for Aaron. Live at [musing-maxwell-84ed29.vercel.app](https://musing-maxwell-84ed29.vercel.app).
+Live at [musing-maxwell-84ed29.vercel.app](https://musing-maxwell-84ed29.vercel.app).
 
 ## TL;DR — spin it up
 

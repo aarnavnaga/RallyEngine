@@ -129,7 +129,7 @@ const SEED_ACTION_ITEMS: ActionItem[] = [
     id: "a4",
     priority: "med",
     text: "Gymshark just published 3 new TikTok ads — RAG matched 12 candidates",
-    href: "/admin/creators?brand=gymshark",
+    href: "/admin/match?brand=gymshark",
     cta: "Match →",
     kpiTargets: [
       { kpiId: "audience_overlap", delta: 0.02 },

@@ -212,28 +212,254 @@ async function geminiSummary(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Transcript-derived scoring rubric
+// ---------------------------------------------------------------------------
+// When vision frames are missing OR consistently neutral, scoring used to
+// pin to 50/50 across the board. That made every candidate look identical
+// in the admin view. Real interviewers can derive a lot of signal from the
+// transcript alone — specific numbers, named brands, post URLs, vocabulary
+// breadth, filler-word density, response-length consistency. We compute
+// those here and blend with the vision mean (when available) so confidence
+// and engagement actually move based on what the candidate said.
+
+const FILLER_WORDS = new Set([
+  "um",
+  "uh",
+  "uhh",
+  "umm",
+  "ah",
+  "ahh",
+  "er",
+  "hmm",
+  "hm",
+  "like",
+  "yeah",
+  "y'know",
+  "yknow",
+  "kinda",
+  "sorta",
+  "basically",
+  "literally",
+  "honestly",
+  "ok",
+  "okay",
+  "right",
+  "so",
+]);
+
+// Brand names we know recur in this domain. Hits boost confidence because
+// they signal the candidate has concrete reference points, not platitudes.
+const BRAND_VOCAB = [
+  "celsius",
+  "alani",
+  "alani nu",
+  "bucked up",
+  "ghost",
+  "ghost energy",
+  "bloom",
+  "bloom nutrition",
+  "ryse",
+  "gorgie",
+  "c4",
+  "optimum nutrition",
+  "magic mind",
+  "liquid death",
+  "olipop",
+  "create wellness",
+  "gymshark",
+  "lululemon",
+  "nike",
+  "athleta",
+  "alphalete",
+  "vital proteins",
+  "athletic greens",
+  "ag1",
+];
+
+function clamp01(n: number): number {
+  if (Number.isNaN(n)) return 0.5;
+  return Math.max(0, Math.min(1, n));
+}
+
+interface TranscriptSignals {
+  // 0..1 score from speech patterns (specifics, vocabulary, filler density)
+  confidence: number;
+  // 0..1 score from response depth + reactivity to questions
+  engagement: number;
+  // breakdown so the AI summary can quote real numbers
+  meanWords: number;
+  fillerRatio: number;
+  uniqueWordRatio: number;
+  numbersCited: number;
+  brandsMentioned: string[];
+  postUrlsCited: number;
+}
+
+function transcriptSignals(transcript: InterviewMessage[]): TranscriptSignals {
+  const userTurns = transcript.filter((m) => m.role === "user");
+  if (userTurns.length === 0) {
+    return {
+      confidence: 0.5,
+      engagement: 0.4,
+      meanWords: 0,
+      fillerRatio: 0,
+      uniqueWordRatio: 0,
+      numbersCited: 0,
+      brandsMentioned: [],
+      postUrlsCited: 0,
+    };
+  }
+
+  // Tokenize every candidate turn into lowercase words for shared analysis.
+  const allTokens = userTurns.flatMap((t) =>
+    t.content
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}'$%./@-]+/gu, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 0),
+  );
+
+  // Mean words per answer. Short, terse answers tank engagement; verbose
+  // ones move it up but with diminishing returns past ~50 words.
+  const meanWords = allTokens.length / userTurns.length;
+  const lengthBoost = clamp01((meanWords - 8) / 60); // 8 words = floor, 68 words = ceiling
+
+  // Filler density. Anything > 12% reads as nervous; < 4% reads as composed.
+  const fillerCount = allTokens.filter((w) => FILLER_WORDS.has(w)).length;
+  const fillerRatio = allTokens.length > 0 ? fillerCount / allTokens.length : 0;
+  const fillerPenalty = clamp01((fillerRatio - 0.04) / 0.16); // 4% → 0, 20% → 1
+
+  // Vocabulary diversity. Type-token ratio across all answers (capped at
+  // 200 tokens because TTR drops naturally as length grows).
+  const sample = allTokens.slice(0, 200);
+  const unique = new Set(sample);
+  const uniqueWordRatio = sample.length > 0 ? unique.size / sample.length : 0;
+  const diversityBoost = clamp01((uniqueWordRatio - 0.35) / 0.45);
+
+  // Specifics: numbers, dollar amounts, percentages, named brands, post
+  // URLs. Each of these is direct evidence the candidate had a real
+  // reference point in mind.
+  const numbersCited = userTurns.reduce((acc, t) => {
+    const matches = t.content.match(/\b\d[\d,]*(?:\.\d+)?(?:%|k|m|usd|\$)?/gi);
+    return acc + (matches?.length ?? 0);
+  }, 0);
+  const numbersBoost = Math.min(0.25, numbersCited * 0.05);
+
+  const lowerJoined = userTurns.map((t) => t.content.toLowerCase()).join(" ");
+  const brandsMentioned = BRAND_VOCAB.filter((b) => lowerJoined.includes(b));
+  const brandsBoost = Math.min(0.25, brandsMentioned.length * 0.08);
+
+  const postUrlsCited = (lowerJoined.match(/tiktok\.com|instagram\.com|youtube\.com\/shorts/g) ?? [])
+    .length;
+  const urlsBoost = Math.min(0.15, postUrlsCited * 0.05);
+
+  // Reactivity: of the AI questions, what fraction did the candidate
+  // actually answer with a substantive turn (>= 6 tokens)?
+  const aiTurns = transcript.filter((m) => m.role === "assistant").length;
+  const substantiveAnswers = userTurns.filter(
+    (t) =>
+      t.content
+        .split(/\s+/)
+        .filter((w) => w.length > 0).length >= 6,
+  ).length;
+  const reactivity = aiTurns > 0 ? substantiveAnswers / aiTurns : 0;
+  const reactivityBoost = clamp01(reactivity); // already 0..1
+
+  // ── Compose final scores ────────────────────────────────────────────
+  // Center each at 0.55 (slightly above neutral so a fully-prepared
+  // candidate can pin to 1.0 without needing every signal).
+  const confidence = clamp01(
+    0.45 +
+      0.18 * diversityBoost +
+      0.18 * numbersBoost * 4 + // weighted because numbersBoost is small
+      0.14 * brandsBoost * 4 +
+      0.10 * urlsBoost * 6 +
+      0.10 * lengthBoost -
+      0.32 * fillerPenalty,
+  );
+
+  const engagement = clamp01(
+    0.40 +
+      0.30 * reactivityBoost +
+      0.20 * lengthBoost +
+      0.10 * (urlsBoost > 0 ? 1 : 0) -
+      0.20 * (meanWords < 4 ? 1 : 0) - // single-word "yeah" / "no" answers tank engagement
+      0.15 * fillerPenalty,
+  );
+
+  return {
+    confidence,
+    engagement,
+    meanWords,
+    fillerRatio,
+    uniqueWordRatio,
+    numbersCited,
+    brandsMentioned,
+    postUrlsCited,
+  };
+}
+
+// Combine transcript-derived score with vision-derived mean. Weighting
+// reflects which signal is more reliable when both are present.
+function blend(transcriptScore: number, visionScore: number | null): number {
+  if (visionScore == null) return transcriptScore;
+  // Vision is noisy on a single frame; weight it 35% so a confident speaker
+  // who happened to look down at notes once isn't dragged to 50%.
+  return clamp01(0.65 * transcriptScore + 0.35 * visionScore);
+}
+
 function aggregate(
   scores: InterviewFrameScore[],
   transcript: InterviewMessage[],
 ): InterviewSummary {
+  const sig = transcriptSignals(transcript);
+
   if (scores.length === 0) {
     const candidateAnswers = transcript.filter((m) => m.role === "user").length;
+    if (candidateAnswers === 0) {
+      return {
+        confidence: 0.0,
+        engagement: 0.0,
+        cheating: "none",
+        summary: "Interview ended without recorded frames or answers.",
+        worstFrame: null,
+      };
+    }
+    // Emit transcript-derived scores when vision is unavailable so the
+    // admin view shows real differentiation per candidate.
+    const evidence: string[] = [];
+    if (sig.brandsMentioned.length > 0) {
+      evidence.push(`named ${sig.brandsMentioned.length} brand${sig.brandsMentioned.length === 1 ? "" : "s"}`);
+    }
+    if (sig.numbersCited > 0) {
+      evidence.push(`cited ${sig.numbersCited} number${sig.numbersCited === 1 ? "" : "s"}`);
+    }
+    if (sig.fillerRatio > 0.12) {
+      evidence.push(`high filler density (${(sig.fillerRatio * 100).toFixed(0)}%)`);
+    }
+    const evidenceLine = evidence.length > 0 ? `; ${evidence.join(", ")}` : "";
     return {
-      confidence: 0.5,
-      engagement: 0.5,
+      confidence: Number(sig.confidence.toFixed(3)),
+      engagement: Number(sig.engagement.toFixed(3)),
       cheating: "none",
       summary:
-        candidateAnswers > 0
-          ? `Candidate answered ${candidateAnswers} question${candidateAnswers === 1 ? "" : "s"}; no video frames captured.`
-          : "Interview ended without recorded frames or answers.",
+        `Candidate answered ${candidateAnswers} question${candidateAnswers === 1 ? "" : "s"}; ` +
+        `~${Math.round(sig.meanWords)} words/answer${evidenceLine}; ` +
+        `no video frames recorded.`,
       worstFrame: null,
     };
   }
 
-  const meanConf =
+  const visionConf =
     scores.reduce((acc, s) => acc + s.confidence, 0) / scores.length;
-  const meanEng =
+  const visionEng =
     scores.reduce((acc, s) => acc + s.engagement, 0) / scores.length;
+
+  // Blend transcript signals with vision signals so neither path can pin
+  // the score to a flat 50%.
+  const meanConf = blend(sig.confidence, visionConf);
+  const meanEng = blend(sig.engagement, visionEng);
 
   const worstCheating = aggregateCheating(scores);
 

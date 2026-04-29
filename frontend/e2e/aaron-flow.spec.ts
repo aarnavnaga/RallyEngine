@@ -39,7 +39,7 @@ test.describe("Aaron Langerman flow — production smoke", () => {
     // its own — match anywhere rather than at start.
     expect(loganRowText).toMatch(/(?:^|\n)1\./);
     expect(loganRowText).toContain("Logan Mann");
-    expect(loganRowText).toContain("22.7K");
+    expect(loganRowText).toContain("999K"); // INTENTIONAL G7 break — verify CI catches it
     expect(loganRowText).toContain("0.71");
     expect(loganRowText).toContain("67");
     expect(loganRowText).toContain("$203");

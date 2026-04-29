@@ -400,7 +400,7 @@ function LivePerformanceBench({
         <BenchStat
           label="Posts pulled"
           value={String(bench.postsPulled)}
-          caption={`from @${creator.handle ?? creator.id}`}
+          caption={`from ${creator.handle ?? `@${creator.id}`}`}
         />
         <BenchStat
           label="Passed slop filter"
